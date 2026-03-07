@@ -1,0 +1,39 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="container" style="max-width: 500px; margin-top: 5rem;">
+    <div class="card" style="padding: 3rem;">
+        <h2 class="section-title" style="text-align: center;">학생 회원가입</h2>
+        <p style="text-align: center; color: var(--text-muted); margin-bottom: 2rem;">
+            처음 방문하셨다면 이름과 사용할 비밀번호를 설정해주세요.
+        </p>
+
+        <form method="POST" action="{{ url_for('student_register') }}">
+            <div class="form-group">
+                <label>학번 (9자리)</label>
+                <input type="text" name="student_number" class="form-control" required minlength="9" maxlength="9"
+                    pattern="\d{9}" title="9자리 숫자로 입력해주세요" placeholder="예: 202612345">
+            </div>
+
+            <div class="form-group">
+                <label>이름</label>
+                <input type="text" name="name" class="form-control" required placeholder="예: 홍길동">
+            </div>
+
+            <div class="form-group">
+                <label>비밀번호 (PIN 6자리)</label>
+                <input type="password" name="password" class="form-control" required minlength="6" maxlength="6"
+                    pattern="\d{6}" title="6자리 숫자로 입력해주세요" placeholder="******">
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
+                회원가입
+            </button>
+            <div style="text-align: center; margin-top: 1.5rem;">
+                <a href="{{ url_for('student_login') }}" style="color: var(--text-muted); text-decoration: none;">이미 계정이
+                    있으신가요? <span style="color: var(--primary-color); font-weight: 600;">로그인하기</span></a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
