@@ -25,8 +25,8 @@ def identity(form):
 
 
 def valid_password(value):
-    if not isinstance(value, str) or not 12 <= len(value) <= 128 or value.isspace():
-        raise RuleError('새 비밀번호는 12~128자로 입력해 주세요.')
+    if not isinstance(value, str) or not re.fullmatch(r'[0-9]{6}', value):
+        raise RuleError('비밀번호는 숫자 6자리로 입력해 주세요.')
     return value
 
 
@@ -166,6 +166,17 @@ def register_routes(app):
         session.permanent = True
         flash('비밀번호를 변경했습니다. 다른 기기의 로그인은 해제됩니다.')
         return redirect(url_for('account'))
+
+    @app.route('/account/skip-password-change', methods=['POST'])
+    @student_required
+    def skip_password_change():
+        if not current_user.must_change_password:
+            return redirect(url_for('index'))
+        with write_transaction():
+            current_user.must_change_password = False
+            event(actor(), 'password_change_skipped', current_user.id)
+        flash('비밀번호 변경을 건너뛰었습니다. 필요할 때 내 정보에서 변경할 수 있습니다.')
+        return redirect(url_for('my_reservations'))
 
     @app.route('/my/reservations')
     @student_required

@@ -1,6 +1,6 @@
 # Philips Evnia Esports Lab
 
-한국외국어대학교 실습실의 학생 가입, 좌석 예약, 운영진 방문 확인을 위한 Flask 웹 서비스입니다. Philips Evnia의 후원으로 개관했다는 운영자 설명을 기준으로 소개를 정리했습니다.
+학생 가입, 좌석 예약, 운영진 방문 확인을 위한 Philips Evnia Esports Lab Flask 웹 서비스입니다.
 
 - 서비스: [hufsesports.pythonanywhere.com](https://hufsesports.pythonanywhere.com/)
 - 저장소: [playjaehoon/HUFS_Esports_Lab](https://github.com/playjaehoon/HUFS_Esports_Lab)
@@ -68,7 +68,7 @@ py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m flask --app app run --host 127.0.0.1 --port 5000
 ```
 
-브라우저에서 `http://127.0.0.1:5000`을 엽니다. 관리자 이름과 12~128자 비밀번호는 명령 프롬프트에서 직접 정합니다. 공개된 기본 관리자 계정을 자동 생성하지 않습니다. 학생도 12~128자 비밀번호로 바로 가입하며, 테스트에는 가상 학번·이름만 사용합니다.
+브라우저에서 `http://127.0.0.1:5000`을 엽니다. 관리자 이름과 12~128자 비밀번호는 명령 프롬프트에서 직접 정합니다. 공개된 기본 관리자 계정을 자동 생성하지 않습니다. 학생은 숫자 6자리 비밀번호로 바로 가입하며, 테스트에는 가상 학번·이름만 사용합니다.
 
 `.env`를 자동으로 읽습니다. `SECRET_KEY`는 32자 이상이어야 하며 누락되면 실행을 거절합니다. 기본 DB는 `instance/esportslab.db`입니다. 운영은 `APP_ENV=production`과 HTTPS를 사용하고, 테스트용 `.env`를 서버에 복사하지 않습니다.
 

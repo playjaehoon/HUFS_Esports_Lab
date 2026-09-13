@@ -1,7 +1,7 @@
 {% extends 'layout.html' %}{% from '_forms.html' import csrf, input %}
 {% block content %}
 <h1 class="page-title">내 정보</h1>
-{% if current_user.must_change_password %}<p class="notice-banner" role="status">보안 업데이트로 새 비밀번호 설정이 필요합니다. 아래에서 변경한 뒤 이용해 주세요.</p>{% endif %}
+{% if current_user.must_change_password %}<div class="notice-banner" role="status"><p>기존 계정의 비밀번호를 숫자 6자리로 변경할 수 있습니다.</p><form method="post" action="{{ url_for('skip_password_change') }}" class="inline-form">{{ csrf() }}<button class="btn btn-secondary" type="submit">나중에 하기</button></form></div>{% endif %}
 <div class="account-grid">
 <section class="card"><h2 class="section-title">회원정보 수정</h2>
 <p class="section-intro">학생증과 일치하도록 입력하세요. 변경해도 예약과 이용 이력은 유지됩니다.</p>
@@ -14,8 +14,8 @@
 <section class="card"><h2 class="section-title">비밀번호 변경</h2>
 <form method="post" action="{{ url_for('change_password') }}">{{ csrf() }}
 <div class="form-group"><label for="password_current">현재 비밀번호</label><input class="form-control" id="password_current" name="current_password" type="password" required maxlength="128" autocomplete="current-password"></div>
-{{ input('password', '새 비밀번호 (12~128자)', 'password', minlen=12, maxlen=128, autocomplete='new-password') }}
-{{ input('password_confirm', '새 비밀번호 확인', 'password', minlen=12, maxlen=128, autocomplete='new-password') }}
+{{ input('password', '새 비밀번호 (숫자 6자리)', 'password', minlen=6, maxlen=6, autocomplete='new-password', inputmode='numeric', pattern='[0-9]{6}') }}
+{{ input('password_confirm', '새 비밀번호 확인', 'password', minlen=6, maxlen=6, autocomplete='new-password', inputmode='numeric', pattern='[0-9]{6}') }}
 <button class="btn btn-primary">비밀번호 변경</button>
 </form></section></div>
 {% endblock %}

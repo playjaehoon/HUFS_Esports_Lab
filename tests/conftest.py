@@ -7,7 +7,8 @@ from application import create_app
 from booking import DEFAULTS
 from models import Admin, Student, Setting, StudentNumberClaim, db
 
-PASSWORD = 'local-test-password-2026'
+PASSWORD = '123456'
+ADMIN_PASSWORD = 'local-admin-password-2026'
 
 
 @pytest.fixture(scope='session')
@@ -24,7 +25,7 @@ def app(tmp_path, password_hash):
     with app.app_context():
         db.create_all()
         db.session.add_all([Setting(key=k, value=v) for k, v in DEFAULTS.items()])
-        db.session.add(Admin(id=1, username='staff', password_hash=password_hash))
+        db.session.add(Admin(id=1, username='staff', password_hash=generate_password_hash(ADMIN_PASSWORD)))
         db.session.add_all([Student(id=i, student_number=f'20260000{i}', name=f'Test student {i}', password_hash=password_hash) for i in (1, 2)])
         db.session.flush()
         db.session.add_all([StudentNumberClaim(student_number=f'20260000{i}',student_pk=i) for i in (1,2)])
@@ -53,7 +54,7 @@ def login(app, student=1, admin=False):
     client = app.test_client()
     path = '/admin/login' if admin else '/login'
     data = {'username': 'staff'} if admin else {'student_number': f'20260000{student}'}
-    response = post(client, path, {**data, 'password': PASSWORD})
+    response = post(client, path, {**data, 'password': ADMIN_PASSWORD if admin else PASSWORD})
     assert response.status_code == 302
     return client
 

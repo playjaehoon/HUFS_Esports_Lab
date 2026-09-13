@@ -429,13 +429,15 @@ h2.section-title {
 /* Shared components for the student and staff workflows. */
 a { color: var(--primary-color); }
 .navbar { gap: 1rem; flex-wrap: wrap; }
-.brand { color: #c7e8ed; text-decoration: none; font-size: 1.4rem; font-weight: 700; }
-.brand span { color: #d8c9ef; }
+.brand { display: inline-flex; align-items: center; color: #c7e8ed; text-decoration: none; font-weight: 700; }
+.brand img { display: block; width: 190px; height: 48px; object-fit: cover; object-position: center; background: #fff; border-radius: 5px; }
 .navbar .nav-links { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
 .navbar .nav-links a { margin: 0; width: auto; padding: .5rem 0 !important; background: none; }
 .nav-links form { display: inline; }
 .nav-logout { border: 0; background: transparent; color: white; font: inherit; padding: .5rem; cursor: pointer; }
 .site-footer { padding: 2rem 1rem; text-align: center; color: #53616b; font-size: .85rem; }
+.inline-form { display: inline; margin-left: 1rem; }
+.btn-secondary { background: #e8edf2; color: var(--primary-color); }
 .auth-card { max-width: 480px; margin: 2rem auto; }
 .section-title { font-size: 1.5rem; margin-bottom: 1rem; color: var(--primary-color); }
 .section-intro { margin: 1rem 0 1.5rem; }
@@ -482,7 +484,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px soli
 @media(max-width:700px) {
     .navbar { align-items: flex-start; text-align: left; padding: 1rem; }
     .navbar .nav-links { flex-direction: row; width: auto; gap: .9rem; }
-    .brand { font-size: 1.12rem; }
+    .brand img { width: 150px; height: 40px; }
     .container { margin-top: 1.4rem; }
     .account-grid { grid-template-columns: 1fr; }
     .admin-reservation { flex-direction: column; }
