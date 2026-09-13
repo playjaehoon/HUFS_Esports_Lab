@@ -1,0 +1,6 @@
+{% extends 'layout.html' %}{% from '_forms.html' import pagination %}
+{% block content %}<h1 class="page-title">운영 처리 기록</h1>
+<p class="section-intro">처리자 ID·대상 ID와 시각을 기록합니다. 시각은 UTC 기준입니다.</p>
+<section class="card table-scroll"><table class="table"><thead><tr><th>시각 (UTC)</th><th>처리자</th><th>작업</th><th>대상</th><th>사유</th></tr></thead><tbody>
+{% for e in events.items %}<tr><td>{{ e.created_at.strftime('%Y-%m-%d %H:%M') }}</td><td>{{ e.actor }}</td><td>{{ e.action }}</td><td>{{ e.target }}</td><td>{{ e.reason }}</td></tr>{% else %}<tr><td colspan="5">기록이 없습니다.</td></tr>{% endfor %}</tbody></table></section>
+{{ pagination(events,'admin_audit') }}{% endblock %}

@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
-
 :root {
     --primary-color: #002c5f;
     /* HUFS Navy */
@@ -26,7 +24,7 @@
 }
 
 body {
-    font-family: 'Outfit', sans-serif;
+    font-family: system-ui, -apple-system, 'Malgun Gothic', sans-serif;
     background-color: var(--background);
     color: var(--text-main);
     line-height: 1.6;
@@ -427,4 +425,68 @@ h2.section-title {
         padding: 0.75rem !important;
         font-size: 1rem !important;
     }
+}
+/* Shared components for the student and staff workflows. */
+a { color: var(--primary-color); }
+.navbar { gap: 1rem; flex-wrap: wrap; }
+.brand { color: #c7e8ed; text-decoration: none; font-size: 1.4rem; font-weight: 700; }
+.brand span { color: #d8c9ef; }
+.navbar .nav-links { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.navbar .nav-links a { margin: 0; width: auto; padding: .5rem 0 !important; background: none; }
+.nav-links form { display: inline; }
+.nav-logout { border: 0; background: transparent; color: white; font: inherit; padding: .5rem; cursor: pointer; }
+.site-footer { padding: 2rem 1rem; text-align: center; color: #53616b; font-size: .85rem; }
+.auth-card { max-width: 480px; margin: 2rem auto; }
+.section-title { font-size: 1.5rem; margin-bottom: 1rem; color: var(--primary-color); }
+.section-intro { margin: 1rem 0 1.5rem; }
+.help-text { color: #53616b; font-size: .9rem; margin: 1rem 0; }
+.full-width { width: 100%; }
+.page-title { margin-bottom: 1.5rem; }
+.page-heading { display: flex; justify-content: space-between; gap: 1rem; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; }
+.account-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1.5rem; }
+.booking-card { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.booking-card h2 { font-size: 1.2rem; margin: .7rem 0; }
+.status-badge { display: inline-block; color: #164b5c; background: #e2f1f4; padding: .2rem .7rem; border-radius: 5px; font-size: .9rem; }
+.detail-card { max-width: 680px; margin: 1rem auto; }
+.reservation-details { display: grid; grid-template-columns: 100px 1fr; gap: .8rem; margin: 1.5rem 0; }
+.reservation-details dt { color: #53616b; }
+.reservation-details dd { overflow-wrap: anywhere; }
+.check-label { display: flex; align-items: flex-start; gap: .6rem; margin: 1rem 0; }
+.check-label input { margin-top: .35rem; width: 18px; height: 18px; flex-shrink: 0; }
+.filter-row { display: flex; gap: 1rem; align-items: end; flex-wrap: wrap; margin-bottom: 1.5rem; }
+.filter-row label { flex: 1; min-width: 120px; }
+.admin-reservation { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding: 1.3rem 0; border-bottom: 1px solid var(--border-color); }
+.admin-reservation h3 { margin: .5rem 0; }
+.admin-actions { min-width: 220px; max-width: 360px; }
+.admin-actions form { margin: .7rem 0; }
+summary { cursor: pointer; font-weight: 600; padding: .7rem 0; }
+.block-entry { padding: 1rem 0; border-bottom: 1px solid var(--border-color); }
+.pagination { display: flex; justify-content: center; gap: 1.5rem; padding: 1rem; }
+.empty-state { text-align: center; padding: 2rem 1rem; }
+.empty-state p { margin: 1rem 0; }
+.table-scroll { overflow-x: auto; }
+.booking-summary { background: #e8f2f7; color: #173f5b; padding: 1rem; margin: 1rem 0; border-radius: 8px; }
+.seat-legend { display: flex; gap: 1rem; flex-wrap: wrap; font-size: .9rem; }
+#availabilityStatus { margin: 1rem 0; min-height: 3em; }
+#bookingError { margin-top: 1rem; color: #9b2330; }
+.lab-room { flex: 0 0 320px; }
+.left-wall-top, .left-wall-bottom, .center-island-top, .center-island-bottom { position: absolute; }
+.island-grid { display: grid; grid-template-columns: repeat(2,44px); gap: 6px 16px; }
+.seat-col { gap: 6px; }
+.seat { position: relative; width: 44px; height: 44px; font-family: inherit; }
+.seat:disabled { cursor: not-allowed; }
+.seat:disabled:not(.occupied) { opacity: .55; }
+.seat.high-perf::after { pointer-events: none; }
+.btn:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid #1586ae; outline-offset: 3px; }
+@media(max-width:700px) {
+    .navbar { align-items: flex-start; text-align: left; padding: 1rem; }
+    .navbar .nav-links { flex-direction: row; width: auto; gap: .9rem; }
+    .brand { font-size: 1.12rem; }
+    .container { margin-top: 1.4rem; }
+    .account-grid { grid-template-columns: 1fr; }
+    .admin-reservation { flex-direction: column; }
+    .admin-actions { min-width: 0; width: 100%; }
+    .auth-card { margin: 1rem auto; }
+    .seat-map-wrapper { justify-content: flex-start; }
 }

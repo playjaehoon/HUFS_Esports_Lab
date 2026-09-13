@@ -1,77 +1,41 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HUFS Esports Lab Reservation</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{% block title %}Philips Evnia Esports Lab{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <style>
-        @font-face {
-            font-family: 'Gladiora';
-            src: url('{{ url_for("static", filename="fonts/Gladiora-Bold.ttf") }}') format('truetype');
-            font-weight: normal;
-            font-style: normal;
-        }
-
-        .navbar h1 {
-            cursor: pointer;
-            margin: 0;
-            padding: 0;
-            font-family: 'Gladiora', sans-serif;
-            font-weight: normal;
-            font-size: 2.2rem;
-            letter-spacing: 2px;
-            background: linear-gradient(90deg, #60af9c 0%, #52a6c8 25%, #5a85cc 55%, #7e69a8 80%, #7d4486 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            color: transparent;
-        }
-    </style>
 </head>
-
 <body>
-    <nav class="navbar">
-        <h1 onclick="window.location.href='/'">Philips Evnia Esports Lab</h1>
-        <div class="nav-links">
-            {% if current_user.is_authenticated %}
-            {% if current_user.get_id().startswith('admin_') %}
-            <a href="{{ url_for('admin_dashboard') }}">관리자 대시보드</a>
-            <a href="{{ url_for('admin_logout') }}">관리자 로그아웃</a>
-            {% else %}
-            <a href="{{ url_for('logout') }}"><span style="font-size: 0.9em; opacity: 0.8; margin-right: 5px;">{{
-                    current_user.name }}님</span>로그아웃</a>
-            {% endif %}
-            {% else %}
-            <a href="{{ url_for('student_login') }}">로그인</a>
-            <a href="{{ url_for('student_register') }}"
-                style="background-color: var(--primary-color); color: white; border-radius: 4px; padding: 4px 12px;">회원가입</a>
-            <a href="{{ url_for('admin_login') }}">관리자</a>
-            {% endif %}
-        </div>
-    </nav>
-
-    <div class="container">
-        {% with messages = get_flashed_messages() %}
-        {% if messages %}
-        <div class="toast-container" id="toastContainer">
-            {% for message in messages %}
-            <div class="toast">
-                <span>{{ message }}</span>
-                <button onclick="this.parentElement.remove()"
-                    style="background:none; border:none; cursor:pointer; margin-left:1rem; font-size:1.2rem;">&times;</button>
-            </div>
-            {% endfor %}
-        </div>
+<nav class="navbar" aria-label="주 메뉴">
+    <a class="brand" href="{{ url_for('index') }}">Philips Evnia <span>Esports Lab</span></a>
+    <div class="nav-links">
+    {% if current_user.is_authenticated %}
+        {% if current_user.get_id().startswith('admin_') %}
+        <a href="{{ url_for('admin_dashboard') }}">오늘 예약</a>
+        <a href="{{ url_for('admin_students') }}">학생 관리</a>
+        <a href="{{ url_for('admin_audit') }}">처리 기록</a>
+        {% else %}
+        <a href="{{ url_for('index') }}">예약하기</a>
+        <a href="{{ url_for('my_reservations') }}">내 예약</a>
+        <a href="{{ url_for('account') }}">내 정보</a>
         {% endif %}
-        {% endwith %}
-
-        {% block content %}{% endblock %}
+        <form method="post" action="{{ url_for('logout') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="nav-logout" type="submit">로그아웃</button>
+        </form>
+    {% else %}
+        <a href="{{ url_for('student_login') }}">로그인</a>
+        <a href="{{ url_for('student_register') }}">회원가입</a>
+        <a href="{{ url_for('admin_login') }}">관리자</a>
+    {% endif %}
     </div>
-
-    <!-- For dynamic toasts from JS -->
-    <div class="toast-container" id="jsToastContainer"></div>
+</nav>
+<main class="container">
+    {% for message in get_flashed_messages() %}<p class="notice-banner" role="status">{{ message }}</p>{% endfor %}
+    {% block content %}{% endblock %}
+</main>
+<footer class="site-footer">Philips Evnia의 후원으로 마련된 한국외국어대학교 실습실</footer>
 </body>
-
 </html>

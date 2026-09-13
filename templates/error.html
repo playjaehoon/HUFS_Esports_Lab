@@ -1,0 +1,3 @@
+{% extends 'layout.html' %}
+{% block content %}<section class="card auth-card"><h1 class="section-title">요청을 확인해 주세요</h1>
+<p role="alert">{{ message }}</p><p class="section-intro"><a href="{{ url_for('index') }}">시작 화면으로</a></p></section>{% endblock %}

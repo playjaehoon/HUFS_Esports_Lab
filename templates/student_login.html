@@ -1,44 +1,14 @@
-{% extends 'layout.html' %}
-
+{% extends 'layout.html' %}{% from '_forms.html' import csrf, input %}
 {% block content %}
-<div class="container" style="max-width: 500px; margin-top: 5rem;">
-    <div class="card" style="padding: 3rem;">
-        <h2 class="section-title" style="text-align: center;">학생 로그인</h2>
-
-        {% if registered %}
-        <div
-            style="background-color: #e8f5e9; color: #2e7d32; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; text-align: center; font-weight: bold; line-height: 1.5;">
-            🎉 회원가입이 완료되었습니다.<br>관리자 승인 후 로그인이 가능합니다.
-        </div>
-        {% elif pending %}
-        <div
-            style="background-color: #fff3cd; color: #856404; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; text-align: center; font-weight: bold;">
-            ⏳ 관리자의 가입 승인을 기다리고 있습니다.
-        </div>
-        {% endif %}
-
-        <form method="POST" action="{{ url_for('student_login') }}">
-            <div class="form-group">
-                <label>학번 (9자리)</label>
-                <input type="text" name="student_number" class="form-control" required minlength="9" maxlength="9"
-                    pattern="\d{9}" title="9자리 숫자로 입력해주세요" placeholder="예: 202612345"
-                    value="{{ student_number if student_number else '' }}">
-            </div>
-
-            <div class="form-group">
-                <label>비밀번호 (PIN 6자리)</label>
-                <input type="password" name="password" class="form-control" required minlength="6" maxlength="6"
-                    pattern="\d{6}" title="6자리 숫자로 입력해주세요" placeholder="******">
-            </div>
-
-            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
-                로그인
-            </button>
-            <div style="text-align: center; margin-top: 1.5rem;">
-                <a href="{{ url_for('student_register') }}" style="color: var(--text-muted); text-decoration: none;">예약이
-                    처음이신가요? <span style="color: var(--primary-color); font-weight: 600;">회원가입하기</span></a>
-            </div>
-        </form>
-    </div>
-</div>
+<section class="card auth-card">
+    <h1 class="section-title">학생 로그인</h1>
+    <p class="section-intro">예약과 내 이용 내역을 확인하세요.</p>
+    <form method="post">{{ csrf() }}
+        {{ input('student_number', '학번 (9자리)', minlen=9, maxlen=9, autocomplete='username') }}
+        {{ input('password', '비밀번호', 'password', maxlen=128, autocomplete='current-password') }}
+        <button class="btn btn-primary full-width">로그인</button>
+    </form>
+    <p class="section-intro"><a href="{{ url_for('student_register') }}">처음이라면 회원가입</a></p>
+    <p class="help-text">기존 PIN도 로그인할 수 있습니다. 보안 업데이트 후에는 새 비밀번호 설정이 필요합니다. 계정 복구는 현장 운영진에게 문의해 주세요.</p>
+</section>
 {% endblock %}

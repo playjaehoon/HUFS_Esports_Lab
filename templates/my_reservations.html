@@ -1,0 +1,14 @@
+{% extends 'layout.html' %}{% from '_forms.html' import pagination %}
+{% block content %}
+<div class="page-heading"><div><h1>내 예약</h1><p>예약 시간과 좌석, 이용 상태를 확인하세요.</p></div><a class="btn btn-primary" href="{{ url_for('index') }}">새 예약</a></div>
+{% if next_booking %}<section class="notice-banner"><strong>가장 가까운 예약</strong><p>{{ next_booking.date }} · {{ next_booking.start_time }}:00–{{ next_booking.end_time }}:00 · PC {{ next_booking.seat_number }}</p><a href="{{ url_for('reservation_detail', reservation_id=next_booking.id) }}">예약 확인하기</a></section>{% endif %}
+{% if history.items %}
+<div class="booking-list">{% for r in history.items %}
+<article class="card booking-card"><div><span class="status-badge">{{ r.state_label }}</span>
+<h2>{{ r.date }} · {{ '%02d'|format(r.start_time) }}:00–{{ '%02d'|format(r.end_time) }}:00</h2>
+<p>PC {{ r.seat_number }} · 예약 #{{ r.id }}</p>
+{% if r.status == 'active' and not r.is_attended %}<p class="help-text">{% if starts_at(r) > now %}방문 시 학생증을 준비해 주세요.{% else %}방문 처리 상태는 운영진에게 확인해 주세요.{% endif %}</p>{% endif %}
+</div><a class="btn" href="{{ url_for('reservation_detail', reservation_id=r.id) }}">상세 보기</a></article>
+{% endfor %}</div>{{ pagination(history, 'my_reservations') }}
+{% else %}<section class="card empty-state"><h2>아직 예약 내역이 없습니다</h2><p>날짜와 시간을 선택하고 이용할 좌석을 예약하세요.</p><a href="{{ url_for('index') }}">예약하러 가기</a></section>{% endif %}
+{% endblock %}

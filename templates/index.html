@@ -1,117 +1,22 @@
 {% extends 'layout.html' %}
-
 {% block content %}
-<div class="reservation-layout">
-
-    <!-- Left Column: Form -->
-    <div class="form-panel">
-        <div class="card">
-            <h2 class="section-title">예약 정보 입력</h2>
-
-            {% if notice %}
-            <div class="notice-banner">
-                📢 {{ notice }}
-            </div>
-            {% endif %}
-
-            <form id="reservationForm">
-                <!-- We no longer need student_id or name inputs as they come from session -->
-                <input type="hidden" id="student_id" value="{{ student.student_number }}">
-                <input type="hidden" id="student_name" value="{{ student.name }}">
-
-                <div class="info-box"
-                    style="margin-bottom: 1.5rem; background-color: #e3f2fd; border-left: 4px solid #1976d2;">
-                    <strong>👤 예약자 정보</strong><br>
-                    <span>{{ student.student_number }} {{ student.name }}</span>
-                </div>
-
-                <div class="form-group">
-                    <label>예약 일자</label>
-                    <input type="date" id="res_date" class="form-control" required>
-                </div>
-
-                <div class="form-group" style="display: flex; gap: 1rem; flex-wrap: wrap;">
-                    <div style="flex: 1; min-width: 120px;">
-                        <label>시작 시간</label>
-                        <select id="start_time" class="form-control" required>
-                            <option value="">선택</option>
-                            <option value="9">09:00</option>
-                            <option value="10">10:00</option>
-                            <option value="11">11:00</option>
-                            <option value="12">12:00</option>
-                            <option value="13">13:00</option>
-                            <option value="14">14:00</option>
-                            <option value="15">15:00</option>
-                            <option value="16">16:00</option>
-                        </select>
-                    </div>
-                    <div style="flex: 1; min-width: 120px;">
-                        <label>종료 시간</label>
-                        <select id="end_time" class="form-control" required>
-                            <option value="">선택</option>
-                            <option value="10">10:00</option>
-                            <option value="11">11:00</option>
-                            <option value="12">12:00</option>
-                            <option value="13">13:00</option>
-                            <option value="14">14:00</option>
-                            <option value="15">15:00</option>
-                            <option value="16">16:00</option>
-                            <option value="17">17:00</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label>선택된 좌석</label>
-                    <input type="text" id="selected_seat_display" class="form-control" placeholder="우측 도면에서 좌석을 선택해주세요"
-                        readonly style="background-color: #f0f4f8; font-weight: bold; color: var(--primary-color);">
-                    <input type="hidden" id="seat_number" required>
-                </div>
-
-                <div class="info-box">
-                    <strong>📌 주의사항</strong>
-                    <ul style="color: #000;">
-                        <li>1~10번 좌석은 고성능 PC입니다.</li>
-                        <li>실습실 내부는 물 이외의 모든 음료, 간식 반입 금지입니다.</li>
-                        <li>운영 시간은 9:00 ~ 17:00 입니다.</li>
-                        <li>하루 최대 3시간까지 예약 가능합니다.</li>
-                        <li>사용 종료 후 반드시 자리를 정리해 주시기 바랍니다.</li>
-                        <li>큰 소음은 자제해 주시기 바랍니다.</li>
-                        <li>허위 예약 및 노쇼 시 이용이 제한될 수 있습니다.</li>
-                    </ul>
-                </div>
-
-                <button type="submit" class="btn btn-primary"
-                    style="width: 100%; margin-top: 1.5rem; font-size: 1.1rem; padding: 1rem;">예약 완료하기</button>
-            </form>
-        </div>
-    </div>
-
-    <!-- Right Column: Seat Map -->
-    <div class="seat-panel">
-        <div class="card">
-            <h2 class="section-title">좌석 선택 (도면)</h2>
-            <div
-                style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; justify-content: center; font-size: 0.9rem;">
-                <div style="display: flex; align-items: center; gap: 0.5rem;"><span
-                        style="width: 16px; height: 16px; background: var(--seat-available); border: 2px solid var(--border-color); border-radius: 4px;"></span>
-                    예약 가능</div>
-                <div style="display: flex; align-items: center; gap: 0.5rem;"><span
-                        style="width: 16px; height: 16px; background: var(--seat-selected); border: 2px solid var(--primary-color); border-radius: 4px;"></span>
-                    선택됨</div>
-                <div style="display: flex; align-items: center; gap: 0.5rem;"><span
-                        style="width: 16px; height: 16px; background: var(--seat-occupied); border: 2px solid #b0bec5; border-radius: 4px;"></span>
-                    예약 불가</div>
-            </div>
-
-            <div class="seat-map-wrapper">
-                <div class="lab-room" id="labRoom">
-                    <!-- Seats will be generated by JS -->
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+<div class="page-heading"><div><h1>좌석 예약</h1><p>{{ student.name }}님, 이용할 날짜와 시간을 선택하세요.</p></div><a href="{{ url_for('my_reservations') }}">내 예약 확인</a></div>
+{% if notice %}<p class="notice-banner">{{ notice }}</p>{% endif %}
+<form id="reservationForm" class="reservation-layout" data-seats="{{ seats|list|tojson }}">
+<section class="card"><h2 class="section-title">1. 날짜와 시간</h2>
+<div class="form-group"><label for="res_date">예약 날짜 (한국 시간)</label><input type="date" id="res_date" class="form-control" min="{{ today }}" max="{{ last_date }}" required></div>
+<div class="form-group"><label for="start_time">시작 시간</label><select id="start_time" class="form-control" required><option value="">선택</option>{% for h in range(policy.open_hour, policy.close_hour) %}<option value="{{ h }}">{{ '%02d'|format(h) }}:00</option>{% endfor %}</select></div>
+<div class="form-group"><label for="end_time">종료 시간</label><select id="end_time" class="form-control" required><option value="">선택</option>{% for h in range(policy.open_hour+1, policy.close_hour+1) %}<option value="{{ h }}">{{ '%02d'|format(h) }}:00</option>{% endfor %}</select></div>
+<p class="help-text">운영 {{ policy.open_hour }}–{{ policy.close_hour }}시 · 최대 {{ policy.max_hours }}시간 · 하루 1건<br>시작 전 취소 후 다시 예약할 수 있습니다.</p>
+<p class="help-text">1–10번 고성능 PC · 물 이외 음식물 반입 금지<br>이용 당일 학생증 지참 · 이용 후 자리 정리</p>
+<div class="booking-summary" id="bookingSummary" aria-live="polite">날짜와 시간을 먼저 선택해 주세요.</div>
+<button class="btn btn-primary full-width" id="submitReservation" disabled>예약 확정</button>
+<p id="bookingError" role="alert"></p>
+</section>
+<section class="card"><h2 class="section-title">2. 좌석 선택</h2>
+<div class="seat-legend"><span>□ 예약 가능</span><span>■ 선택</span><span>▧ 예약/점검</span></div>
+<p id="availabilityStatus" role="status">날짜와 시간을 선택하면 좌석 상태를 확인합니다.</p>
+<div class="seat-map-wrapper"><div class="lab-room" id="labRoom" aria-label="실습실 좌석도"></div></div>
+</section>
+</form><script src="{{ url_for('static', filename='js/main.js') }}" defer></script>
 {% endblock %}
