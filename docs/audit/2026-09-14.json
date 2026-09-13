@@ -1,0 +1,120 @@
+{
+  "scope": "Offline copy; synthetic data; no deployed service requests",
+  "python": "3.11.7",
+  "packages": {
+    "Flask": "3.0.2",
+    "Flask-SQLAlchemy": "3.1.1",
+    "Flask-Login": "0.6.3",
+    "Werkzeug": "3.0.1",
+    "SQLAlchemy": "2.0.52"
+  },
+  "checked_at": "2026-09-14T00:28:32.941015+09:00",
+  "results": [
+    {
+      "check": "anonymous_admin",
+      "status": 302
+    },
+    {
+      "check": "student_reads_admin",
+      "status": 200
+    },
+    {
+      "check": "student_reads_student_list",
+      "status": 200,
+      "synthetic_pin_visible": true
+    },
+    {
+      "check": "student_changes_admin_settings",
+      "status": 302,
+      "changed": true
+    },
+    {
+      "check": "student_cancels_other_reservation",
+      "status": 302,
+      "cancelled": true
+    },
+    {
+      "check": "student_attends_cancelled_future_reservation",
+      "status": 302,
+      "active": true,
+      "attended": true
+    },
+    {
+      "check": "past_date_accepted",
+      "status": 200,
+      "body": {
+        "message": "예약이 성공적으로 완료되었습니다.",
+        "success": true
+      }
+    },
+    {
+      "check": "beyond_seven_days_accepted",
+      "status": 200,
+      "body": {
+        "message": "예약이 성공적으로 완료되었습니다.",
+        "success": true
+      }
+    },
+    {
+      "check": "outside_hours_accepted",
+      "status": 200,
+      "body": {
+        "message": "예약이 성공적으로 완료되었습니다.",
+        "success": true
+      }
+    },
+    {
+      "check": "nonexistent_seat_accepted",
+      "status": 200,
+      "body": {
+        "message": "예약이 성공적으로 완료되었습니다.",
+        "success": true
+      }
+    },
+    {
+      "check": "missing_times",
+      "status": 500,
+      "body": null
+    },
+    {
+      "check": "already_logged_in_blocked_student_reserves",
+      "status": 200,
+      "body": {
+        "message": "예약이 성공적으로 완료되었습니다.",
+        "success": true
+      }
+    },
+    {
+      "check": "sequential_overlap_is_rejected",
+      "first": {
+        "message": "예약이 성공적으로 완료되었습니다.",
+        "success": true
+      },
+      "second": {
+        "message": "선택하신 좌석은 해당 시간에 이미 예약되었습니다.",
+        "success": false
+      }
+    },
+    {
+      "check": "second_daily_booking_is_rejected",
+      "body": {
+        "message": "하루에 한 좌석(예약 1건)까지만 예약할 수 있습니다.",
+        "success": false
+      }
+    },
+    {
+      "check": "invalid_registration_accepted",
+      "status": 302,
+      "saved": true,
+      "empty_name": true,
+      "short_pin_stored_plain": true
+    },
+    {
+      "check": "registration_requires_approval",
+      "register_status": 302,
+      "is_approved": false,
+      "login_status": 200,
+      "pending_message": true
+    }
+  ]
+}
