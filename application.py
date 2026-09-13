@@ -70,7 +70,8 @@ def create_app(test_config=None):
     @app.before_request
     def password_upgrade():
         if current_user.is_authenticated and isinstance(current_user._get_current_object(), Student):
-            if current_user.must_change_password and request.endpoint not in {'account', 'change_password', 'logout', 'static'}:
+            if current_user.must_change_password and request.endpoint not in {
+                    'account', 'change_password', 'skip_password_change', 'logout', 'static'}:
                 if request.path.startswith('/api/'):
                     raise RuleError('내 정보에서 비밀번호를 먼저 변경해 주세요.', 403)
                 return redirect(url_for('account'))

@@ -6,8 +6,8 @@
     <form method="post">{{ csrf() }}
         {{ input('student_number', '학번 (9자리)', minlen=9, maxlen=9, autocomplete='username') }}
         {{ input('name', '이름', maxlen=50, autocomplete='name') }}
-        {{ input('password', '비밀번호 (12~128자)', 'password', minlen=12, maxlen=128, autocomplete='new-password') }}
-        {{ input('password_confirm', '비밀번호 확인', 'password', minlen=12, maxlen=128, autocomplete='new-password') }}
+        {{ input('password', '비밀번호 (숫자 6자리)', 'password', minlen=6, maxlen=6, autocomplete='new-password', inputmode='numeric', pattern='[0-9]{6}') }}
+        {{ input('password_confirm', '비밀번호 확인', 'password', minlen=6, maxlen=6, autocomplete='new-password', inputmode='numeric', pattern='[0-9]{6}') }}
         <button class="btn btn-primary full-width">가입하고 시작하기</button>
     </form>
     <p class="section-intro"><a href="{{ url_for('student_login') }}">이미 계정이 있다면 로그인</a></p>

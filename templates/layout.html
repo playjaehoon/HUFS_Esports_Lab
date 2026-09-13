@@ -9,7 +9,9 @@
 </head>
 <body>
 <nav class="navbar" aria-label="주 메뉴">
-    <a class="brand" href="{{ url_for('index') }}">Philips Evnia <span>Esports Lab</span></a>
+    <a class="brand" href="{{ url_for('index') }}" aria-label="Philips Evnia Esports Lab">
+        <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Philips Evnia Esports Lab">
+    </a>
     <div class="nav-links">
     {% if current_user.is_authenticated %}
         {% if current_user.get_id().startswith('admin_') %}
@@ -36,6 +38,6 @@
     {% for message in get_flashed_messages() %}<p class="notice-banner" role="status">{{ message }}</p>{% endfor %}
     {% block content %}{% endblock %}
 </main>
-<footer class="site-footer">Philips Evnia의 후원으로 마련된 한국외국어대학교 실습실</footer>
+<footer class="site-footer">Esports Lab 예약·이용 안내</footer>
 </body>
 </html>

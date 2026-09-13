@@ -22,7 +22,7 @@ def test_registration_is_immediate_and_password_is_only_hashed(app):
         assert not {'pin_plain', 'is_approved'} & {c['name'] for c in inspect(db.engine).get_columns('student')}
 
 
-@pytest.mark.parametrize('changes', [{'student_number': 'bad'}, {'name': '   '}, {'password': '123456'}, {'password_confirm': 'different'}])
+@pytest.mark.parametrize('changes', [{'student_number': 'bad'}, {'name': '   '}, {'password': '12345'}, {'password': '12a456'}, {'password_confirm': 'different'}])
 def test_bad_registration_is_rejected(app, changes):
     client = app.test_client()
     data = {'student_number': '202699999', 'name': 'Test', 'password': PASSWORD, 'password_confirm': PASSWORD, **changes}
@@ -105,9 +105,24 @@ def test_identity_edit_requires_password_and_unique_number(app):
 
 def test_password_change_revokes_other_sessions(app):
     first, second = login(app), login(app)
-    assert post(first, '/account/password', {'current_password':PASSWORD,'password':'a-new-long-password','password_confirm':'a-new-long-password'}).status_code == 302
+    assert post(first, '/account/password', {'current_password':PASSWORD,'password':'654321','password_confirm':'654321'}).status_code == 302
     assert first.get('/my/reservations').status_code == 200
     assert second.get('/my/reservations').status_code == 302
+
+
+def test_imported_student_can_skip_password_change_prompt(app):
+    with app.app_context():
+        student = db.session.get(Student, 1)
+        student.must_change_password = True
+        db.session.commit()
+    client = login(app)
+    assert client.get('/my/reservations').status_code == 302
+    assert post(client, '/account/skip-password-change').status_code == 302
+    assert client.get('/my/reservations').status_code == 200
+    with app.app_context():
+        assert db.session.get(Student, 1).must_change_password is False
+        assert db.session.scalar(db.select(db.func.count()).select_from(AuditEvent).where(
+            AuditEvent.action == 'password_change_skipped')) == 1
 
 
 def test_block_applies_to_existing_session_without_losing_history(app):
@@ -235,3 +250,11 @@ def test_pages_render_for_each_role(app):
     response = student.get('/account')
     assert response.headers['Cache-Control'] == 'no-store'
     assert response.headers['X-Frame-Options'] == 'DENY'
+
+
+def test_layout_uses_original_logo_asset_and_short_student_pin_copy(app):
+    response = app.test_client().get('/login')
+    body = response.get_data(as_text=True)
+    assert '/static/images/logo.png' in body
+    assert 'Philips Evnia의 후원으로 마련된 한국외국어대학교 실습실' not in body
+    assert '숫자 6자리' in body
