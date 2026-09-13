@@ -1,7 +1,7 @@
 """Offline characterization of the initial repository, using synthetic data only.
 
 Run from a local checkout: python tools/audit_snapshot.py
-The app is copied into a temporary directory before import. No HTTP server or
+The baseline e0681a0 is exported into a temporary directory before import. No HTTP server or
 production database is used. This records existing behavior, not release tests.
 """
 
@@ -10,7 +10,7 @@ import importlib.metadata
 import json
 from pathlib import Path
 import secrets
-import shutil
+import subprocess
 import sys
 import tempfile
 from datetime import datetime, timedelta
@@ -21,9 +21,13 @@ def main():
     results = []
     with tempfile.TemporaryDirectory(prefix="hufs-offline-audit-") as folder:
         copied = Path(folder)
-        for filename in ("app.py", "models.py"):
-            shutil.copy2(source / filename, copied / filename)
-        shutil.copytree(source / "templates", copied / "templates")
+        baseline = 'e0681a0'
+        paths = subprocess.check_output(['git', 'ls-tree', '-r', '--name-only', baseline,
+                                         '--', 'app.py', 'models.py', 'templates'], cwd=source).decode().splitlines()
+        for filename in paths:
+            target = copied / filename
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(subprocess.check_output(['git', 'show', f'{baseline}:{filename}'], cwd=source))
         sys.path.insert(0, str(copied))
         module = importlib.import_module("app")
         app, db = module.app, module.db
@@ -152,6 +156,7 @@ def main():
 
     print(json.dumps({
         "scope": "Offline copy; synthetic data; no deployed service requests",
+        "source_commit": baseline,
         "python": sys.version.split()[0],
         "packages": {name: importlib.metadata.version(name) for name in
                      ("Flask", "Flask-SQLAlchemy", "Flask-Login", "Werkzeug", "SQLAlchemy")},

@@ -38,5 +38,6 @@ planned feature already exists.
 The initial audit is based on e0681a0. The public site is
 https://hufsesports.pythonanywhere.com/. Hosting account access and the exact
 deployed version/configuration were not available during the initial audit.
-The current initial code has critical authorization and plaintext-PIN issues;
-see docs/01-audit.md before expanding access or removing signup approval.
+The critical issues in the initial code are recorded in docs/01-audit.md as
+historical findings. Local fixes and remaining deployment steps are tracked in
+docs/07-progress.md. Never equate a local commit with a deployed release.

@@ -1,23 +1,8 @@
-{% extends 'layout.html' %}
-
-{% block content %}
-<div class="container" style="max-width: 500px; margin-top: 5rem;">
-    <div class="card" style="padding: 3rem;">
-        <h2 class="section-title" style="text-align: center;">관리자 로그인</h2>
-
-        <form method="POST" action="{{ url_for('admin_login') }}">
-            <div class="form-group">
-                <label>아이디</label>
-                <input type="text" name="username" class="form-control" required>
-            </div>
-
-            <div class="form-group">
-                <label>비밀번호</label>
-                <input type="password" name="password" class="form-control" required>
-            </div>
-
-            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">로그인</button>
-        </form>
-    </div>
-</div>
-{% endblock %}
+{% extends 'layout.html' %}{% from '_forms.html' import csrf, input %}
+{% block content %}<section class="card auth-card">
+<h1 class="section-title">운영진 로그인</h1>
+<form method="post">{{ csrf() }}
+{{ input('username', '관리자 아이디', maxlen=50, autocomplete='username') }}
+{{ input('password', '비밀번호', 'password', maxlen=128, autocomplete='current-password') }}
+<button class="btn btn-primary full-width">로그인</button>
+</form></section>{% endblock %}

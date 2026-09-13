@@ -1,0 +1,15 @@
+{% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endmacro %}
+{% macro input(name, label, type='text', value='', required=true, minlen=none, maxlen=none, autocomplete=none) %}
+<div class="form-group"><label for="{{ name }}">{{ label }}</label>
+<input class="form-control" id="{{ name }}" name="{{ name }}" type="{{ type }}" value="{{ value }}"
+    {% if required %}required{% endif %}{% if minlen %} minlength="{{ minlen }}"{% endif %}
+    {% if maxlen %} maxlength="{{ maxlen }}"{% endif %}{% if autocomplete %} autocomplete="{{ autocomplete }}"{% endif %}>
+</div>
+{% endmacro %}
+{% macro pagination(pages, endpoint, q=none) %}
+<nav class="pagination" aria-label="목록 페이지">
+{% if pages.has_prev %}<a href="{{ url_for(endpoint, page=pages.prev_num, q=q) }}">이전</a>{% endif %}
+<span>{{ pages.page }} / {{ pages.pages or 1 }}</span>
+{% if pages.has_next %}<a href="{{ url_for(endpoint, page=pages.next_num, q=q) }}">다음</a>{% endif %}
+</nav>
+{% endmacro %}

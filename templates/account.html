@@ -1,0 +1,21 @@
+{% extends 'layout.html' %}{% from '_forms.html' import csrf, input %}
+{% block content %}
+<h1 class="page-title">내 정보</h1>
+{% if current_user.must_change_password %}<p class="notice-banner" role="status">보안 업데이트로 새 비밀번호 설정이 필요합니다. 아래에서 변경한 뒤 이용해 주세요.</p>{% endif %}
+<div class="account-grid">
+<section class="card"><h2 class="section-title">회원정보 수정</h2>
+<p class="section-intro">학생증과 일치하도록 입력하세요. 변경해도 예약과 이용 이력은 유지됩니다.</p>
+<form method="post">{{ csrf() }}
+{{ input('student_number', '학번', value=current_user.student_number, minlen=9, maxlen=9) }}
+{{ input('name', '이름', value=current_user.name, maxlen=50) }}
+{{ input('current_password', '현재 비밀번호', 'password', maxlen=128, autocomplete='current-password') }}
+<button class="btn btn-primary">정보 저장</button>
+</form></section>
+<section class="card"><h2 class="section-title">비밀번호 변경</h2>
+<form method="post" action="{{ url_for('change_password') }}">{{ csrf() }}
+<div class="form-group"><label for="password_current">현재 비밀번호</label><input class="form-control" id="password_current" name="current_password" type="password" required maxlength="128" autocomplete="current-password"></div>
+{{ input('password', '새 비밀번호 (12~128자)', 'password', minlen=12, maxlen=128, autocomplete='new-password') }}
+{{ input('password_confirm', '새 비밀번호 확인', 'password', minlen=12, maxlen=128, autocomplete='new-password') }}
+<button class="btn btn-primary">비밀번호 변경</button>
+</form></section></div>
+{% endblock %}

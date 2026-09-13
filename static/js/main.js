@@ -1,205 +1,112 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const labRoom = document.getElementById('labRoom');
-    if (!labRoom) return;
-
-    // Build the seat layout
-    const layout = [
-        { id: 'lw-top', class: 'left-wall-top', type: 'col', start: 17, end: 21 },
-        { id: 'lw-bot', class: 'left-wall-bottom', type: 'col', start: 22, end: 27 },
-        { id: 'ci-top', class: 'center-island-top', type: 'block', rows: 5, start: 1 },
-        { id: 'ci-bot', class: 'center-island-bottom', type: 'block', rows: 3, start: 11 }
-    ];
-
-    let allSeats = [];
-
-    layout.forEach(group => {
-        const groupEl = document.createElement('div');
-        groupEl.className = group.class;
-        groupEl.style.position = 'absolute';
-
-        if (group.type === 'col') {
-            groupEl.className += ' seat-col';
-            let html = '';
-            for (let i = group.start; i <= group.end; i++) {
-                let hp = i <= 10 ? ' high-perf' : '';
-                html += `<div class="seat${hp}" data-seat="${i}">${i}</div>`;
-                allSeats.push(i);
-            }
-            groupEl.innerHTML = html;
-        } else if (group.type === 'block') {
-            groupEl.style.display = 'flex';
-            groupEl.style.gap = '20px';
-
-            const col1 = document.createElement('div');
-            col1.className = 'seat-col';
-            const col2 = document.createElement('div');
-            col2.className = 'seat-col';
-
-            let current = group.start;
-            for (let i = 0; i < group.rows; i++) {
-                let hp1 = current <= 10 ? ' high-perf' : '';
-                col1.innerHTML += `<div class="seat${hp1}" data-seat="${current}">${current}</div>`;
-                allSeats.push(current);
-                current++;
-                let hp2 = current <= 10 ? ' high-perf' : '';
-                col2.innerHTML += `<div class="seat${hp2}" data-seat="${current}">${current}</div>`;
-                allSeats.push(current);
-                current++;
-            }
-
-            groupEl.appendChild(col1);
-            groupEl.appendChild(col2);
-        }
-
-        labRoom.appendChild(groupEl);
-    });
-
-    // Handle seat selection logic
-    const seatSelectionInput = document.getElementById('seat_number');
-    const selectedSeatDisplay = document.getElementById('selected_seat_display');
-    const seats = document.querySelectorAll('.seat');
-
-    // Inputs that affect availability
-    const dateInput = document.getElementById('res_date');
-    const startTimeInput = document.getElementById('start_time');
-    const endTimeInput = document.getElementById('end_time');
-
-    // Set today's date and 1-week limit based on LOCAL time, not UTC.
-    // getTimezoneOffset() returns minutes, usually -540 for KST (UTC+9)
-    const now = new Date();
-    const localOffset = now.getTimezoneOffset() * 60000;
-    const localToday = new Date(now.getTime() - localOffset);
-
-    const todayStr = localToday.toISOString().split('T')[0];
-    dateInput.min = todayStr;
-
-    const nextWeek = new Date(localToday.getTime());
-    nextWeek.setDate(nextWeek.getDate() + 7);
-    const nextWeekStr = nextWeek.toISOString().split('T')[0];
-    dateInput.max = nextWeekStr;
-
-    function checkAvailability() {
-        const date = dateInput.value;
-        const start = startTimeInput.value;
-        const end = endTimeInput.value;
-
-        if (!date || !start || !end) return;
-
-        // Reset all seats to available
-        seats.forEach(s => {
-            s.classList.remove('occupied');
-            s.style.cursor = 'pointer';
-        });
-
-        fetch(`/api/availability?date=${date}&start_time=${start}&end_time=${end}`)
-            .then(res => res.json())
-            .then(data => {
-                if (data.blocked) {
-                    showToast(data.message);
-                    seats.forEach(s => {
-                        s.classList.add('occupied');
-                        s.classList.remove('selected');
-                        s.style.cursor = 'not-allowed';
-                    });
-                    seatSelectionInput.value = '';
-                    selectedSeatDisplay.value = '';
-                    return;
-                }
-
-                if (data.occupied_seats) {
-                    data.occupied_seats.forEach(num => {
-                        const occupiedSeat = document.querySelector(`.seat[data-seat="${num}"]`);
-                        if (occupiedSeat) {
-                            occupiedSeat.classList.add('occupied');
-                            occupiedSeat.classList.remove('selected');
-                            // If the currently selected seat becomes occupied, clear the selection
-                            if (seatSelectionInput.value == num) {
-                                seatSelectionInput.value = '';
-                                selectedSeatDisplay.value = '';
-                            }
-                        }
-                    });
-                }
-            })
-            .catch(err => console.error("Error fetching availability", err));
-    }
-
-    dateInput.addEventListener('change', checkAvailability);
-    startTimeInput.addEventListener('change', checkAvailability);
-    endTimeInput.addEventListener('change', checkAvailability);
-
-    seats.forEach(seat => {
-        seat.addEventListener('click', () => {
-            if (seat.classList.contains('occupied')) {
-                showToast("이 좌석은 선택한 시간에 이미 예약되어 있습니다.");
-                return;
-            }
-
-            seats.forEach(s => s.classList.remove('selected'));
-            seat.classList.add('selected');
-
-            const seatNum = seat.getAttribute('data-seat');
-            seatSelectionInput.value = seatNum;
-            selectedSeatDisplay.value = `PC ${seatNum}번 좌석`;
-        });
-    });
-
-    // Handle Time duration constraints visually
-    startTimeInput.addEventListener('change', () => {
-        const start = parseInt(startTimeInput.value);
-        if (!start) return;
-
-        // Auto-select end_time slightly logic or constrain
-        Array.from(endTimeInput.options).forEach(opt => {
-            const val = parseInt(opt.value);
-            if (val) {
-                if (val <= start) opt.disabled = true;
-                else opt.disabled = false;
-            }
-        });
-    });
-
-    // Form submission via AJAX
     const form = document.getElementById('reservationForm');
-    form.addEventListener('submit', (e) => {
-        e.preventDefault();
+    if (!form) return;
+    const room = document.getElementById('labRoom');
+    const date = document.getElementById('res_date');
+    const start = document.getElementById('start_time');
+    const end = document.getElementById('end_time');
+    const submit = document.getElementById('submitReservation');
+    const status = document.getElementById('availabilityStatus');
+    const summary = document.getElementById('bookingSummary');
+    const error = document.getElementById('bookingError');
+    const csrf = document.querySelector('meta[name="csrf-token"]').content;
+    const groups = [
+        ['left-wall-top', [17, 18, 19, 20, 21]],
+        ['left-wall-bottom', [22, 23, 24, 25, 26, 27]],
+        ['center-island-top', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]],
+        ['center-island-bottom', [11, 12, 13, 14, 15, 16]],
+    ];
+    const validSeats = new Set(JSON.parse(form.dataset.seats));
+    const buttons = new Map();
+    let selected = null, ready = false, pending = false, controller, version = 0;
+    groups.forEach(([className, numbers]) => {
+        const group = document.createElement('div');
+        group.className = `${className} ${className.startsWith('center') ? 'island-grid' : 'seat-col'}`;
+        numbers.filter(n => validSeats.has(n)).forEach(number => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = `seat${number <= 10 ? ' high-perf' : ''}`;
+            button.textContent = number;
+            button.disabled = true;
+            button.setAttribute('aria-pressed', 'false');
+            button.setAttribute('aria-label', `PC ${number}, 시간 선택 필요`);
+            button.addEventListener('click', () => {
+                if (!ready || pending || button.disabled) return;
+                selected = number;
+                buttons.forEach((b, n) => {
+                    b.classList.toggle('selected', n === number);
+                    b.setAttribute('aria-pressed', String(n === number));
+                });
+                summary.textContent = `${date.value} · ${start.value}:00–${end.value}:00 · PC ${number}`;
+                submit.disabled = false;
+            });
+            group.appendChild(button);
+            buttons.set(number, button);
+        });
+        room.appendChild(group);
+    });
 
-        if (!seatSelectionInput.value) {
-            alert('좌석을 선택해주세요!');
+    async function availability() {
+        const requestVersion = ++version;
+        controller?.abort();
+        controller = new AbortController();
+        ready = false;
+        selected = null;
+        submit.disabled = true;
+        error.textContent = '';
+        buttons.forEach(button => {
+            button.disabled = true;
+            button.classList.remove('selected', 'occupied');
+            button.setAttribute('aria-pressed', 'false');
+        });
+        summary.textContent = '좌석을 선택해 주세요.';
+        if (!date.value || !start.value || !end.value) {
+            status.textContent = '날짜와 시간을 먼저 선택해 주세요.';
             return;
         }
-
-        const payload = {
-            student_id: document.getElementById('student_id').value,
-            student_name: document.getElementById('student_name').value,
-            date: dateInput.value,
-            start_time: startTimeInput.value,
-            end_time: endTimeInput.value,
-            seat_number: seatSelectionInput.value
-        };
-
-        fetch('/api/reserve', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    alert(data.message);
-                    window.location.reload();
-                } else {
-                    alert(data.message);
-                }
+        status.textContent = '좌석 상태를 확인하고 있습니다…';
+        try {
+            const params = new URLSearchParams({date: date.value, start_time: start.value, end_time: end.value});
+            const response = await fetch(`/api/availability?${params}`, {signal: controller.signal});
+            const data = await response.json();
+            if (requestVersion !== version) return;
+            if (!response.ok) throw new Error(data.message || '좌석 상태를 확인할 수 없습니다.');
+            const occupied = new Set(data.occupied_seats);
+            const blocked = new Set(data.blocked_seats);
+            buttons.forEach((button, number) => {
+                const unavailable = occupied.has(number) || blocked.has(number);
+                button.disabled = unavailable;
+                button.classList.toggle('occupied', unavailable);
+                button.setAttribute('aria-label', `PC ${number}${number <= 10 ? ', 고성능' : ''}, ${blocked.has(number) ? '점검 또는 이용 제한' : occupied.has(number) ? '예약됨' : '예약 가능'}`);
             });
-    });
-
-    function showToast(msg) {
-        const container = document.getElementById('jsToastContainer');
-        const toast = document.createElement('div');
-        toast.className = 'toast';
-        toast.innerHTML = `<span>${msg}</span><button onclick="this.parentElement.remove()" style="background:none; border:none; cursor:pointer; margin-left:1rem; font-size:1.2rem;">&times;</button>`;
-        container.appendChild(toast);
-        setTimeout(() => toast.remove(), 4000);
+            ready = true;
+            status.textContent = '예약할 좌석을 선택하세요. 최종 확정 시 다시 확인합니다.';
+        } catch (failure) {
+            if (failure.name === 'AbortError' || requestVersion !== version) return;
+            status.textContent = failure.message || '연결을 확인하고 시간을 다시 선택해 주세요.';
+        }
     }
+    [date, start, end].forEach(field => field.addEventListener('change', availability));
+    form.addEventListener('submit', async e => {
+        e.preventDefault();
+        if (!ready || selected === null || pending) return;
+        pending = true;
+        submit.disabled = true;
+        [date, start, end].forEach(field => field.disabled = true);
+        try {
+            const response = await fetch('/api/reserve', {
+                method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
+                body: JSON.stringify({date: date.value, start_time: start.value, end_time: end.value, seat_number: selected}),
+            });
+            const data = await response.json();
+            if (!response.ok || !data.success) throw new Error(data.message || '예약에 실패했습니다.');
+            window.location.assign(data.redirect_url);
+        } catch (failure) {
+            await availability();
+            error.textContent = `${failure.message || '연결 오류가 발생했습니다.'} 내 예약에서 처리 여부를 확인해 주세요.`;
+        } finally {
+            pending = false;
+            [date, start, end].forEach(field => field.disabled = false);
+        }
+    });
 });
