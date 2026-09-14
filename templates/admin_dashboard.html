@@ -1,12 +1,12 @@
-{% extends 'layout.html' %}{% from '_forms.html' import csrf, input %}
+{% extends 'layout.html' %}{% from '_forms.html' import csrf, input, half_hour_select %}
 {% block content %}
 <h1 class="page-title">당일 이용 관리</h1>
 <form class="filter-row" method="get"><label>날짜 <input class="form-control" type="date" name="date" value="{{ day }}" required></label><label>이름·학번 <input class="form-control" name="q" value="{{ term }}" maxlength="50"></label><button class="btn btn-primary">조회</button></form>
 <section class="card"><h2 class="section-title">{{ day }} 예약 · {{ reservations|length }}건</h2>
 {% for r in reservations %}
 <article class="admin-reservation">
-<div><span class="status-badge">{{ r.state_label }}</span><h3>{{ r.start_time }}:00–{{ r.end_time }}:00 · PC {{ r.seat_number }}</h3>
-<p>{{ r.student.name }} · {{ r.student.student_number }} · 예약 #{{ r.id }}</p>
+<div><span class="status-badge">{{ r.state_label }}</span><h3>{{ r.start_minute|clock }}–{{ r.end_minute|clock }} · PC {{ r.seat_number }}</h3>
+<p>{{ r.student.name }} · {{ r.student.student_number }} · 예약 #{{ r.id }}{% if r.booking_ip %} · 접속 IP {{ r.booking_ip }}{% endif %}</p>
 {% if r.status != 'active' or r.is_attended %}<small>기록 당시: {{ r.student_name }} · {{ r.student_id }}</small>{% endif %}</div>
 <div class="admin-actions">
 {% if r.status == 'active' %}
@@ -24,19 +24,37 @@
 {% endif %}</div></article>
 {% else %}<p class="empty-state">해당 날짜에 예약이 없습니다.</p>{% endfor %}</section>
 <div class="account-grid">
-<details class="card"><summary>운영 설정</summary><form method="post" action="{{ url_for('admin_settings') }}">{{ csrf() }}
+<details class="card" id="operation-settings" open><summary>공지 및 예약 운영 설정</summary><form method="post" action="{{ url_for('admin_settings') }}">{{ csrf() }}
+{{ input('notice', '예약 화면 상단 공지', value=policy.notice, maxlen=255, required=false) }}
+<label class="form-group" for="usage_notice">예약 화면 이용 안내</label>
+<textarea class="form-control" id="usage_notice" name="usage_notice" maxlength="255" rows="4">{{ policy.usage_notice }}</textarea>
+<p class="help-text">상단 공지는 예약 화면의 강조 상자에 표시됩니다. 이용 안내는 시간 선택 아래에 표시되며 줄바꿈도 유지됩니다.</p>
 <label class="form-group">예약 접수<select class="form-control" name="reservation_open"><option value="1" {% if policy.reservation_open=='1' %}selected{% endif %}>열기</option><option value="0" {% if policy.reservation_open=='0' %}selected{% endif %}>중지</option></select></label>
 {% for key,label in [('open_hour','운영 시작 (시)'),('close_hour','운영 종료 (시)'),('max_hours','최대 예약 시간'),('advance_days','예약 가능 기간 (오늘부터 일수)')] %}
 {{ input(key, label, 'number', value=policy[key]) }}{% endfor %}
-{{ input('notice', '공지', value=policy.notice, maxlen=255, required=false) }}
 <p class="help-text">기존 예약의 시간은 유지됩니다. 접수 중지는 전체 서비스 점검 모드가 아닙니다.</p>
 <button class="btn btn-primary">설정 저장</button></form></details>
-<details class="card"><summary>휴실·수업·고장석 차단</summary><form method="post" action="{{ url_for('admin_block_time') }}">{{ csrf() }}
-{{ input('date', '차단 날짜', 'date') }}
-<label class="form-group">대상 좌석<select name="seat_number" class="form-control"><option value="">전체 좌석</option>{% for seat in seats %}<option value="{{ seat }}">PC {{ seat }}</option>{% endfor %}</select></label>
-<label class="form-group">차단 범위<select name="block_type" class="form-control"><option value="all">하루 전체</option><option value="specific">아래 시간 범위</option></select></label>
-{{ input('start_time','시작 (0~23시)','number', required=false) }}{{ input('end_time','종료 (1~24시)','number', required=false) }}
-{{ input('reason','사유',maxlen=200) }}<button class="btn btn-primary">차단 추가</button></form>
-{% for b in blocks %}<div class="block-entry"><p>{{ b.date }} · {{ '전체 좌석' if b.seat_number is none else 'PC ' ~ b.seat_number }} · {% if b.start_time is none %}하루 전체{% else %}{{ b.start_time }}–{{ b.end_time }}시{% endif %}<br>{{ b.reason }}</p><form method="post" action="{{ url_for('admin_unblock_time',block_id=b.id) }}">{{ csrf() }}<button class="btn">해제</button></form></div>{% endfor %}
+<details class="card"><summary>1. 정기 수업 차단</summary>
+<p class="help-text">매주 같은 요일과 시간에 실습실 전체를 차단합니다.</p>
+<form method="post" action="{{ url_for('admin_block_recurring') }}">{{ csrf() }}
+<label class="form-group">요일<select name="weekday" class="form-control" required>{% for value,label in [(0,'월요일'),(1,'화요일'),(2,'수요일'),(3,'목요일'),(4,'금요일'),(5,'토요일'),(6,'일요일')] %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label>
+{{ half_hour_select('start_time','시작 시간','recurring_start',policy.open_hour,policy.close_hour) }}{{ half_hour_select('end_time','종료 시간','recurring_end',policy.open_hour,policy.close_hour) }}{{ input('reason','수업명·사유',maxlen=200,id='recurring_reason') }}<button class="btn btn-primary">정기 차단 추가</button></form>
+{% for b in recurring_blocks %}<div class="block-entry"><p>매주 {{ ['월','화','수','목','금','토','일'][b.weekday] }}요일 · {{ b.start_minute|clock }}–{{ b.end_minute|clock }} · 전체 좌석<br>{{ b.reason }}</p><form method="post" action="{{ url_for('admin_unblock_recurring',block_id=b.id) }}">{{ csrf() }}<button class="btn">해제</button></form></div>{% endfor %}
+</details>
+<details class="card"><summary>2. 행사·통 대관 차단</summary>
+<p class="help-text">선택한 날짜에 실습실 전체를 단발성으로 차단합니다.</p>
+<form method="post" action="{{ url_for('admin_block_event') }}">{{ csrf() }}{{ input('date','차단 날짜','date',id='event_date') }}
+<label class="form-group">차단 범위<select name="block_type" class="form-control"><option value="all">하루 전체</option><option value="specific">지정 시간</option></select></label>
+{{ half_hour_select('start_time','시작 시간','event_start',policy.open_hour,policy.close_hour,false) }}{{ half_hour_select('end_time','종료 시간','event_end',policy.open_hour,policy.close_hour,false) }}{{ input('reason','행사명·사유',maxlen=200,id='event_reason') }}<button class="btn btn-primary">대관 차단 추가</button></form>
+<h3 class="subsection-title">예정된 대관</h3>{% for group in event_groups %}{% set b=group.first %}<div class="block-entry"><p>{{ b.date }} · {% if b.start_minute is none %}하루 전체{% else %}{{ b.start_minute|clock }}–{{ b.end_minute|clock }}{% endif %}<br>{{ b.reason }}</p><form method="post" action="{{ url_for('admin_unblock_time',block_id=b.id) }}">{{ csrf() }}<button class="btn">해제</button></form></div>{% else %}<p class="empty-state">예정된 대관이 없습니다.</p>{% endfor %}
+</details>
+<details class="card"><summary>3. 일부 좌석 일괄 차단</summary>
+<p class="help-text">고장석이나 운영하지 않을 좌석을 한 번에 선택합니다.</p>
+<form method="post" action="{{ url_for('admin_block_seats') }}">{{ csrf() }}<div class="time-fields">{{ input('start_date','시작 날짜','date',id='seats_start_date') }}{{ input('end_date','종료 날짜','date',id='seats_end_date') }}</div>
+<label class="form-group">차단 범위<select name="block_type" class="form-control"><option value="all">하루 전체</option><option value="specific">지정 시간</option></select></label>
+{{ half_hour_select('start_time','시작 시간','seats_start',policy.open_hour,policy.close_hour,false) }}{{ half_hour_select('end_time','종료 시간','seats_end',policy.open_hour,policy.close_hour,false) }}
+<fieldset><legend>좌석 선택</legend><div class="seat-checkbox-grid">{% for seat in seats %}<label><input type="checkbox" name="seat_numbers" value="{{ seat }}"> PC {{ seat }}</label>{% endfor %}</div></fieldset>
+{{ input('reason','점검·운영 사유',maxlen=200,id='seats_reason') }}<button class="btn btn-primary">좌석 차단 추가</button></form>
+<h3 class="subsection-title">차단 중인 좌석</h3>{% for group in seat_groups %}{% set b=group.first %}<div class="block-entry"><p>{{ group.dates[0] }}{% if group.dates|length > 1 %}–{{ group.dates[-1] }}{% endif %} · PC {{ group.seats|sort|join(', ') }} · {% if b.start_minute is none %}하루 전체{% else %}{{ b.start_minute|clock }}–{{ b.end_minute|clock }}{% endif %}<br>{{ b.reason }}</p><form method="post" action="{{ url_for('admin_unblock_time',block_id=b.id) }}">{{ csrf() }}<button class="btn">기간 전체 해제</button></form></div>{% else %}<p class="empty-state">차단 중인 좌석이 없습니다.</p>{% endfor %}
 </details></div>
 {% endblock %}

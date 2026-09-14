@@ -16,6 +16,7 @@
     {% if current_user.is_authenticated %}
         {% if current_user.get_id().startswith('admin_') %}
         <a href="{{ url_for('admin_dashboard') }}">오늘 예약</a>
+        <a href="{{ url_for('admin_dashboard') }}#operation-settings">공지·설정</a>
         <a href="{{ url_for('admin_students') }}">학생 관리</a>
         <a href="{{ url_for('admin_audit') }}">처리 기록</a>
         {% else %}

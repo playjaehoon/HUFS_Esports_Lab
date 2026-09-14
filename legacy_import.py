@@ -118,15 +118,20 @@ def import_legacy(source, output, legacy_timezone):
                 for row in data['reservation']:
                     row['created_at'] = datetime.fromisoformat(row['created_at']) if row['created_at'] else datetime.now(timezone.utc).replace(tzinfo=None)
                     row['is_attended'] = bool(row['is_attended'])
-                    reservation = Reservation(**row, student_pk=owners[row['student_id']])
+                    start_minute, end_minute = row.pop('start_time') * 60, row.pop('end_time') * 60
+                    reservation = Reservation(**row, student_pk=owners[row['student_id']],
+                                              start_minute=start_minute, end_minute=end_minute)
                     db.session.add(reservation)
                     db.session.flush()
                     if reservation.status == 'active':
                         db.session.add(DailyBooking(student_pk=reservation.student_pk, date=reservation.date, reservation_id=reservation.id))
-                        for hour in range(reservation.start_time, reservation.end_time):
-                            db.session.add(ReservationSlot(reservation_id=reservation.id, date=reservation.date, seat_number=reservation.seat_number, hour=hour))
+                        for minute in range(reservation.start_minute, reservation.end_minute, 30):
+                            db.session.add(ReservationSlot(reservation_id=reservation.id, date=reservation.date, seat_number=reservation.seat_number, minute=minute))
                 for row in data['blocked_time']:
-                    db.session.add(BlockedTime(**row, reason='이전 운영 설정'))
+                    start, end = row.pop('start_time'), row.pop('end_time')
+                    db.session.add(BlockedTime(**row, start_minute=None if start is None else start * 60,
+                                               end_minute=None if end is None else end * 60,
+                                               reason='이전 운영 설정', kind='event', group_token=f"legacy-{row['id']}"))
                 for key, value in values.items():
                     setting = db.session.scalar(db.select(Setting).where(Setting.key == key))
                     if setting:

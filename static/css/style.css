@@ -12,8 +12,8 @@
     --danger: #ff4757;
     --success: #2ed573;
 
-    --seat-available: #ffffff;
-    --seat-occupied: #ced6e0;
+    --seat-available: #f7fbff;
+    --seat-occupied: #c8d1da;
     --seat-selected: var(--primary-color);
 }
 
@@ -232,17 +232,18 @@ h2.section-title {
     width: 40px;
     height: 40px;
     background-color: var(--seat-available);
-    border: 2px solid var(--border-color);
+    border: 2px solid #7893aa;
     border-radius: 6px;
     display: flex;
     justify-content: center;
     align-items: center;
-    font-weight: 600;
+    color: #173f5b;
+    font-weight: 700;
     font-size: 0.85rem;
     cursor: pointer;
     transition: all 0.2s ease;
     user-select: none;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 2px 5px rgba(0, 44, 95, 0.14);
 }
 
 .seat:not(.occupied):hover {
@@ -260,8 +261,8 @@ h2.section-title {
 
 .seat.occupied {
     background-color: var(--seat-occupied);
-    color: #999;
-    border-color: #b0bec5;
+    color: #4d5c68;
+    border-color: #8797a5;
     cursor: not-allowed;
     background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(0, 0, 0, 0.05) 5px, rgba(0, 0, 0, 0.05) 10px);
 }
@@ -429,8 +430,8 @@ h2.section-title {
 /* Shared components for the student and staff workflows. */
 a { color: var(--primary-color); }
 .navbar { gap: 1rem; flex-wrap: wrap; }
-.brand { display: inline-flex; align-items: center; color: #c7e8ed; text-decoration: none; font-weight: 700; }
-.brand img { display: block; width: 190px; height: 48px; object-fit: cover; object-position: center; background: #fff; border-radius: 5px; }
+.brand { display: inline-flex; align-items: center; text-decoration: none; }
+.brand img { display: block; width: auto; height: 44px; max-width: min(360px, 55vw); object-fit: contain; }
 .navbar .nav-links { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
 .navbar .nav-links a { margin: 0; width: auto; padding: .5rem 0 !important; background: none; }
 .nav-links form { display: inline; }
@@ -468,6 +469,17 @@ summary { cursor: pointer; font-weight: 600; padding: .7rem 0; }
 .empty-state p { margin: 1rem 0; }
 .table-scroll { overflow-x: auto; }
 .booking-summary { background: #e8f2f7; color: #173f5b; padding: 1rem; margin: 1rem 0; border-radius: 8px; }
+.field-error { min-height: 1.6em; margin: -.7rem 0 .6rem; color: #a12633; font-weight: 700; }
+.time-preview { margin: -.35rem 0 .8rem; color: var(--primary); font-weight: 700; }
+.privacy-note { color: #536878; font-size: .82rem; line-height: 1.55; }
+.subsection-title { margin: 1.5rem 0 .6rem; font-size: 1rem; }
+.form-control[aria-invalid="true"] { border-color: #c73543; box-shadow: 0 0 0 3px rgba(199,53,67,.12); }
+.usage-notice { white-space: pre-line; }
+.time-fields { display: grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap: 0 1rem; }
+.seat-checkbox-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(92px,1fr)); gap: .55rem; margin: .75rem 0 1rem; }
+.seat-checkbox-grid label { border: 1px solid var(--border); border-radius: 8px; padding: .6rem; background: #f7fbff; }
+fieldset { border: 0; padding: 0; margin: 1rem 0; }
+legend { font-weight: 700; }
 .seat-legend { display: flex; gap: 1rem; flex-wrap: wrap; font-size: .9rem; }
 #availabilityStatus { margin: 1rem 0; min-height: 3em; }
 #bookingError { margin-top: 1rem; color: #9b2330; }
@@ -477,14 +489,15 @@ summary { cursor: pointer; font-weight: 600; padding: .7rem 0; }
 .seat-col { gap: 6px; }
 .seat { position: relative; width: 44px; height: 44px; font-family: inherit; }
 .seat:disabled { cursor: not-allowed; }
-.seat:disabled:not(.occupied) { opacity: .55; }
+.seat:disabled:not(.occupied) { opacity: .82; background: #eef5fa; color: #31566f; }
 .seat.high-perf::after { pointer-events: none; }
 .btn:disabled { opacity: .55; cursor: not-allowed; transform: none; }
 button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid #1586ae; outline-offset: 3px; }
 @media(max-width:700px) {
+    .time-fields { grid-template-columns: 1fr; gap: 0; }
     .navbar { align-items: flex-start; text-align: left; padding: 1rem; }
     .navbar .nav-links { flex-direction: row; width: auto; gap: .9rem; }
-    .brand img { width: 150px; height: 40px; }
+    .brand img { width: auto; height: 38px; max-width: 70vw; }
     .container { margin-top: 1.4rem; }
     .account-grid { grid-template-columns: 1fr; }
     .admin-reservation { flex-direction: column; }

@@ -125,11 +125,11 @@ def test_import_preserves_source_and_converts_security_and_relations(
     # created_at was UTC in the original model, regardless of the server timezone.
     assert datetime.fromisoformat(rows(output, 'SELECT created_at FROM reservation WHERE id=11')[0][0]) == datetime(2026, 9, 25, 1, 2, 3)
     assert rows(output, 'SELECT reservation_id, student_pk FROM daily_booking ORDER BY reservation_id') == [(11, 3), (13, 8)]
-    assert rows(output, 'SELECT reservation_id, hour FROM reservation_slot ORDER BY reservation_id, hour') == [(11, 10), (11, 11), (13, 13), (13, 14)]
+    assert rows(output, 'SELECT reservation_id, minute FROM reservation_slot ORDER BY reservation_id, minute') == [(11, 600), (11, 630), (11, 660), (11, 690), (13, 780), (13, 810), (13, 840), (13, 870)]
     assert rows(output, 'SELECT value FROM setting WHERE key="max_hours"') == [('2',)]
     assert rows(output, 'SELECT value FROM setting WHERE key="open_hour"') == [('9',)]
     assert rows(output, 'SELECT action FROM audit_event') == [('legacy_import',)]
-    assert rows(output, 'SELECT version_num FROM alembic_version') == [('0002',)]
+    assert rows(output, 'SELECT version_num FROM alembic_version') == [('0004',)]
     assert rows(output, 'PRAGMA integrity_check') == [('ok',)]
     assert rows(output, 'PRAGMA foreign_key_check') == []
     with closing(sqlite3.connect(output)) as connection:
@@ -186,7 +186,7 @@ def test_empty_version_table_from_older_failed_upgrade_can_be_imported(legacy, t
     with migration_app(tmp_path / 'cli.db') as app, app.app_context():
         import_legacy(legacy, output, 'UTC')
     assert legacy.read_bytes() == before
-    assert rows(output, 'SELECT version_num FROM alembic_version') == [('0002',)]
+    assert rows(output, 'SELECT version_num FROM alembic_version') == [('0004',)]
 
 
 def test_fresh_upgrade_is_versioned_and_safe_to_repeat(tmp_path):
@@ -194,10 +194,10 @@ def test_fresh_upgrade_is_versioned_and_safe_to_repeat(tmp_path):
     with migration_app(database) as app:
         result = upgrade(app)
         assert result.exit_code == 0, result.output
-        assert rows(database, 'SELECT version_num FROM alembic_version') == [('0002',)]
+        assert rows(database, 'SELECT version_num FROM alembic_version') == [('0004',)]
         result = upgrade(app)
         assert result.exit_code == 0, result.output
-    assert rows(database, 'SELECT version_num FROM alembic_version') == [('0002',)]
+    assert rows(database, 'SELECT version_num FROM alembic_version') == [('0004',)]
     assert rows(database, 'PRAGMA integrity_check') == [('ok',)]
 
 
@@ -216,4 +216,25 @@ def test_revision_0002_backfills_number_ownership_from_0001(tmp_path, password_h
         result = upgrade(app)
         assert result.exit_code == 0, result.output
     assert rows(database, 'SELECT student_number, student_pk FROM student_number_claim') == [('202600042', 42)]
+    assert rows(database, 'PRAGMA foreign_key_check') == []
+
+
+def test_revision_0003_converts_populated_related_booking_rows(tmp_path, password_hash):
+    database = tmp_path / 'revision-0002-with-booking.db'
+    with migration_app(database) as app:
+        assert upgrade(app, '0002').exit_code == 0
+        change(database, "INSERT INTO admin (id,username,password_hash,session_version) VALUES (1,'staff',?,1)", (password_hash,))
+        change(database, '''INSERT INTO student
+            (id,student_number,name,password_hash,archived,must_change_password,session_version)
+            VALUES (1,'202600001','Existing',?,0,0,1)''', (password_hash,))
+        change(database, '''INSERT INTO reservation
+            (id,student_pk,student_id,student_name,date,start_time,end_time,seat_number,status,is_attended,created_at)
+            VALUES (1,1,'202600001','Existing','2026-09-20',10,12,1,'active',0,'2026-09-01')''')
+        change(database, "INSERT INTO daily_booking (student_pk,date,reservation_id) VALUES (1,'2026-09-20',1)")
+        change(database, "INSERT INTO reservation_slot (reservation_id,date,seat_number,hour) VALUES (1,'2026-09-20',1,10)")
+        change(database, "INSERT INTO reservation_slot (reservation_id,date,seat_number,hour) VALUES (1,'2026-09-20',1,11)")
+        result = upgrade(app)
+        assert result.exit_code == 0, result.output
+    assert rows(database, 'SELECT start_minute,end_minute FROM reservation') == [(600,720)]
+    assert rows(database, 'SELECT minute FROM reservation_slot ORDER BY minute') == [(600,),(630,),(660,),(690,)]
     assert rows(database, 'PRAGMA foreign_key_check') == []

@@ -60,7 +60,7 @@ def login(app, student=1, admin=False):
 
 
 def booking(**overrides):
-    return {'date': '2026-09-15', 'start_time': 10, 'end_time': 12, 'seat_number': 1, **overrides}
+    return {'date': '2026-09-15', 'start_time': '10:00', 'end_time': '12:00', 'seat_number': 1, **overrides}
 
 
 def reserve(client, **overrides):

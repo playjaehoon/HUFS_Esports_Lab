@@ -1,11 +1,14 @@
 {% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endmacro %}
-{% macro input(name, label, type='text', value='', required=true, minlen=none, maxlen=none, autocomplete=none, inputmode=none, pattern=none) %}
-<div class="form-group"><label for="{{ name }}">{{ label }}</label>
-<input class="form-control" id="{{ name }}" name="{{ name }}" type="{{ type }}" value="{{ value }}"
+{% macro input(name, label, type='text', value='', required=true, minlen=none, maxlen=none, autocomplete=none, inputmode=none, pattern=none, id=none, step=none) %}
+<div class="form-group"><label for="{{ id or name }}">{{ label }}</label>
+<input class="form-control" id="{{ id or name }}" name="{{ name }}" type="{{ type }}" value="{{ value }}"
     {% if required %}required{% endif %}{% if minlen %} minlength="{{ minlen }}"{% endif %}
     {% if maxlen %} maxlength="{{ maxlen }}"{% endif %}{% if autocomplete %} autocomplete="{{ autocomplete }}"{% endif %}
-    {% if inputmode %} inputmode="{{ inputmode }}"{% endif %}{% if pattern %} pattern="{{ pattern }}"{% endif %}>
+    {% if inputmode %} inputmode="{{ inputmode }}"{% endif %}{% if pattern %} pattern="{{ pattern }}"{% endif %}{% if step %} step="{{ step }}"{% endif %}>
 </div>
+{% endmacro %}
+{% macro half_hour_select(name, label, id, open_hour=0, close_hour=24, required=true) %}
+<div class="form-group"><label for="{{ id }}">{{ label }}</label><select class="form-control" id="{{ id }}" name="{{ name }}" {% if required %}required{% endif %}><option value="">선택</option>{% for minute in range(open_hour * 60, close_hour * 60, 30) %}<option value="{{ '%02d:%02d'|format(minute // 60, minute % 60) }}">{{ '%02d:%02d'|format(minute // 60, minute % 60) }}</option>{% endfor %}</select></div>
 {% endmacro %}
 {% macro pagination(pages, endpoint, q=none) %}
 <nav class="pagination" aria-label="목록 페이지">
