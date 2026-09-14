@@ -5,12 +5,14 @@ import re
 from zoneinfo import ZoneInfo
 from flask import current_app
 from sqlalchemy import text
-from models import AuditEvent, BlockedTime, DailyBooking, ReservationSlot, Setting, db, utcnow
+from models import (AuditEvent, BlockedTime, DailyBooking, RecurringBlock,
+                    ReservationSlot, Setting, db, utcnow)
 
 KOREA = ZoneInfo('Asia/Seoul')
 SEATS = tuple(range(1, 28))  # Existing drawing; confirm onsite before deployment.
 DEFAULTS = {'reservation_open': '1', 'max_hours': '3', 'open_hour': '9', 'close_hour': '17',
-            'advance_days': '7', 'notice': '이용 당일 학생증을 준비해 주세요.'}
+            'advance_days': '7', 'notice': '이용 당일 학생증을 준비해 주세요.',
+            'usage_notice': '1–10번 고성능 PC · 물 이외 음식물 반입 금지\n이용 당일 학생증 지참 · 이용 후 자리 정리'}
 
 
 class RuleError(ValueError):
@@ -38,6 +40,25 @@ def integer(value, label):
     return int(value)
 
 
+def time_minutes(value, label):
+    """Accept HH:MM on the half-hour grid; integer hours remain API-compatible."""
+    if isinstance(value, bool):
+        raise RuleError(f'{label}을 30분 단위로 입력해 주세요.')
+    if isinstance(value, int) or (isinstance(value, str) and re.fullmatch(r'[0-9]{1,2}', value)):
+        hour = int(value)
+        if 0 <= hour <= 24:
+            return hour * 60
+    if isinstance(value, str) and re.fullmatch(r'(?:[01][0-9]|2[0-4]):(?:00|30)', value):
+        hour, minute = map(int, value.split(':'))
+        if hour < 24 or minute == 0:
+            return hour * 60 + minute
+    raise RuleError(f'{label}을 30분 단위로 입력해 주세요.')
+
+
+def clock(minutes):
+    return f'{minutes // 60:02d}:{minutes % 60:02d}'
+
+
 def parse_date(value):
     if not isinstance(value, str) or not re.fullmatch(r'[0-9]{4}-[0-9]{2}-[0-9]{2}', value):
         raise RuleError('예약 날짜를 확인해 주세요.')
@@ -51,16 +72,17 @@ def booking_input(data, seat_required=True):
     if not isinstance(data, dict):
         raise RuleError('예약 정보를 확인해 주세요.')
     date = parse_date(data.get('date'))
-    start, end = integer(data.get('start_time'), '시작 시간'), integer(data.get('end_time'), '종료 시간')
+    start = time_minutes(data.get('start_time'), '시작 시간')
+    end = time_minutes(data.get('end_time'), '종료 시간')
     policy = rules()
     now = korea_now()
     if not now.date() <= date <= now.date() + timedelta(days=policy['advance_days']):
         raise RuleError('예약 가능한 날짜 범위를 벗어났습니다.')
-    if not policy['open_hour'] <= start < end <= policy['close_hour']:
+    if not policy['open_hour'] * 60 <= start < end <= policy['close_hour'] * 60:
         raise RuleError('운영시간 안에서 시작·종료 시간을 선택해 주세요.')
-    if end - start > policy['max_hours']:
+    if end - start > policy['max_hours'] * 60:
         raise RuleError(f"최대 {policy['max_hours']}시간까지 예약할 수 있습니다.")
-    if datetime.combine(date, datetime.min.time(), KOREA) + timedelta(hours=start) <= now:
+    if datetime.combine(date, datetime.min.time(), KOREA) + timedelta(minutes=start) <= now:
         raise RuleError('이미 시작된 시간은 예약할 수 없습니다.')
     seat = integer(data.get('seat_number'), '좌석 번호') if seat_required else None
     if seat_required and seat not in SEATS:
@@ -73,8 +95,12 @@ def booking_input(data, seat_required=True):
 def blocked_seats(date, start, end):
     seats = set()
     for block in db.session.scalars(db.select(BlockedTime).where(BlockedTime.date == date)):
-        if block.start_time is None or max(start, block.start_time) < min(end, block.end_time):
+        if block.start_minute is None or max(start, block.start_minute) < min(end, block.end_minute):
             seats.update(SEATS if block.seat_number is None else [block.seat_number])
+    weekday = parse_date(date).weekday()
+    for block in db.session.scalars(db.select(RecurringBlock).where(RecurringBlock.weekday == weekday)):
+        if max(start, block.start_minute) < min(end, block.end_minute):
+            seats.update(SEATS)
     return seats
 
 
@@ -106,8 +132,14 @@ def release(reservation):
 
 
 def starts_at(reservation):
-    return datetime.combine(parse_date(reservation.date), datetime.min.time(), KOREA) + timedelta(hours=reservation.start_time)
+    return datetime.combine(parse_date(reservation.date), datetime.min.time(), KOREA) + timedelta(minutes=reservation.start_minute)
 
 
 def ends_at(reservation):
-    return starts_at(reservation) + timedelta(hours=reservation.end_time - reservation.start_time)
+    return starts_at(reservation) + timedelta(minutes=reservation.end_minute - reservation.start_minute)
+
+
+def cancellation_allowed(reservation, now):
+    """Students may cancel before start, or within five minutes of booking."""
+    current_utc = now.astimezone(timezone.utc).replace(tzinfo=None)
+    return starts_at(reservation) > now or current_utc <= reservation.created_at + timedelta(minutes=5)

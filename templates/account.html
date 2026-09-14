@@ -1,7 +1,7 @@
 {% extends 'layout.html' %}{% from '_forms.html' import csrf, input %}
 {% block content %}
 <h1 class="page-title">내 정보</h1>
-{% if current_user.must_change_password %}<div class="notice-banner" role="status"><p>기존 계정의 비밀번호를 숫자 6자리로 변경할 수 있습니다.</p><form method="post" action="{{ url_for('skip_password_change') }}" class="inline-form">{{ csrf() }}<button class="btn btn-secondary" type="submit">나중에 하기</button></form></div>{% endif %}
+{% if current_user.must_change_password and not session.get('password_change_skipped') %}<div class="notice-banner" role="status"><p>기존 계정의 비밀번호를 숫자 6자리로 변경할 수 있습니다. 나중에 하기를 누르면 다음 로그인 때 다시 안내합니다.</p><form method="post" action="{{ url_for('skip_password_change') }}" class="inline-form">{{ csrf() }}<button class="btn btn-secondary" type="submit">나중에 하기</button></form></div>{% endif %}
 <div class="account-grid">
 <section class="card"><h2 class="section-title">회원정보 수정</h2>
 <p class="section-intro">학생증과 일치하도록 입력하세요. 변경해도 예약과 이용 이력은 유지됩니다.</p>

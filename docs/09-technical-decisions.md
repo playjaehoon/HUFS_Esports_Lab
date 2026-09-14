@@ -39,7 +39,7 @@ CSRF는 일반 폼뿐 아니라 세션을 사용하는 JavaScript 요청에도 �
 
 ## SQLite는 조건부로 유지한다
 
-현재 27석 도면과 시간 단위 예약은 하나의 PythonAnywhere 앱·짧은 쓰기 작업에 맞는 작은 시스템입니다. 이 범위에서는 별도 DB 서버 운영을 늘리기 전에 SQLite로 검증하는 것이 합리적이라고 판단했습니다. SQLite 공식 문서도 웹사이트 사용을 설명하면서 많은 동시 writer가 필요한 경우에는 클라이언트/서버 DB를 검토하도록 안내합니다. [SQLite 사용 범위](https://sqlite.org/whentouse.html)
+현재 27석 도면과 30분 단위 예약은 하나의 PythonAnywhere 앱·짧은 쓰기 작업에 맞는 작은 시스템입니다. 이 범위에서는 별도 DB 서버 운영을 늘리기 전에 SQLite로 검증하는 것이 합리적이라고 판단했습니다. SQLite 공식 문서도 웹사이트 사용을 설명하면서 많은 동시 writer가 필요한 경우에는 클라이언트/서버 DB를 검토하도록 안내합니다. [SQLite 사용 범위](https://sqlite.org/whentouse.html)
 
 날짜·좌석·시간의 고유 제약과 회원·날짜의 고유 제약을 두고, 예약 검증부터 저장까지 `BEGIN IMMEDIATE`로 묶습니다. SQLite는 동시 writer가 하나이며 잠금 경합 때 busy 오류가 날 수 있습니다. 현재 연결은 최대 15초 잠금 대기 후 오류 응답을 처리합니다. 트랜잭션 안에 외부 HTTP 호출이나 오래 걸리는 작업을 넣지 않습니다. [SQLite 트랜잭션](https://sqlite.org/lang_transaction.html)
 

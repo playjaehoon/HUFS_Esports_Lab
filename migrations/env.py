@@ -98,6 +98,12 @@ def run_migrations_online():
             revision = connection.execute(text('SELECT version_num FROM alembic_version')).scalar() if 'alembic_version' in tables else None
             if revision is None:
                 raise RuntimeError('Unversioned existing database: use import-legacy with a read-only backup and a new output file.')
+        sqlite = connection.dialect.name == 'sqlite'
+        if sqlite:
+            # SQLite batch migrations recreate referenced tables. Foreign-key
+            # enforcement must be toggled outside a transaction, then verified.
+            connection.commit()
+            connection.exec_driver_sql('PRAGMA foreign_keys=OFF')
         context.configure(
             connection=connection,
             target_metadata=get_metadata(),
@@ -109,6 +115,10 @@ def run_migrations_online():
         # SQLite reports non-transactional DDL; explicitly persist the
         # Alembic version row and data backfills before the connection closes.
         connection.commit()
+        if sqlite:
+            connection.exec_driver_sql('PRAGMA foreign_keys=ON')
+            if connection.exec_driver_sql('PRAGMA foreign_key_check').first():
+                raise RuntimeError('Migration left invalid foreign-key references.')
 
 
 if context.is_offline_mode():

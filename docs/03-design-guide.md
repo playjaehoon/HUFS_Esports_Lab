@@ -72,3 +72,7 @@
 - 빠르게 시간을 바꿔도 마지막 선택에 해당하는 조회 응답만 적용.
 - 공지·이용 시간·최대 예약 시간은 서버 설정을 사용하여 서로 다른 안내가 나오지 않음.
 - 예약 완료 후 브라우저를 닫았다가 다시 로그인해도 ‘내 예약’에서 같은 예약을 찾을 수 있음.
+
+## 확정 로고 (2026-09-14)
+
+사용자가 제공한 `Evnia Esports Lab (1).ai` 첫 페이지 위쪽 컬러 로고를 기준으로 합니다. 표기는 `Philips Evnia Esports Lab`로 확정했습니다. Gladiora Bold 글꼴과 원본에서 추출한 민트·파랑·보라 그라데이션으로 투명 PNG `static/images/logo.png`를 생성하며, 배경·테두리·그림자는 넣지 않습니다. 원본 AI와 글꼴은 각각 `static/images/logo.ai`, `static/fonts/Gladiora-Bold.ttf`에 보관합니다. 다시 생성할 때는 `powershell -ExecutionPolicy Bypass -File tools/build_logo.ps1`을 실행합니다.

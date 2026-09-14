@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify, redirect, render_template, request, url_for
+from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 from flask_login import LoginManager, current_user
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFError, CSRFProtect
@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from werkzeug.exceptions import HTTPException
 
 from models import Admin, Student, db
-from booking import RuleError
+from booking import RuleError, clock
 
 
 def create_app(test_config=None):
@@ -33,6 +33,7 @@ def create_app(test_config=None):
     )
     if test_config:
         app.config.update(test_config)
+    app.jinja_env.filters['clock'] = clock
     if not app.secret_key or len(app.secret_key) < 32:
         raise RuntimeError('SECRET_KEY에 새로 생성한 32자 이상의 무작위 키를 설정하세요.')
     if not app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite:'):
@@ -70,8 +71,9 @@ def create_app(test_config=None):
     @app.before_request
     def password_upgrade():
         if current_user.is_authenticated and isinstance(current_user._get_current_object(), Student):
-            if current_user.must_change_password and request.endpoint not in {
-                    'account', 'change_password', 'skip_password_change', 'logout', 'static'}:
+            if (current_user.must_change_password and not session.get('password_change_skipped') and
+                    request.endpoint not in {
+                    'index', 'account', 'change_password', 'skip_password_change', 'logout', 'static'}):
                 if request.path.startswith('/api/'):
                     raise RuleError('내 정보에서 비밀번호를 먼저 변경해 주세요.', 403)
                 return redirect(url_for('account'))

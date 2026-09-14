@@ -1,17 +1,22 @@
 {% extends 'layout.html' %}
 {% block content %}
 <div class="page-heading"><div><h1>좌석 예약</h1><p>{{ student.name }}님, 이용할 날짜와 시간을 선택하세요.</p></div><a href="{{ url_for('my_reservations') }}">내 예약 확인</a></div>
+{% if current_user.must_change_password and not session.get('password_change_skipped') %}<div class="notice-banner" role="status"><p>기존 비밀번호를 사용 중입니다. 내 정보에서 숫자 6자리로 변경하거나 이번 로그인에서 건너뛸 수 있습니다. 다음 로그인 때 다시 안내합니다.</p><div class="inline-form"><a class="btn btn-secondary" href="{{ url_for('account') }}">비밀번호 변경</a><form method="post" action="{{ url_for('skip_password_change') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-secondary" type="submit">나중에 하기</button></form></div></div>{% endif %}
 {% if notice %}<p class="notice-banner">{{ notice }}</p>{% endif %}
-<form id="reservationForm" class="reservation-layout" data-seats="{{ seats|list|tojson }}">
-<section class="card"><h2 class="section-title">1. 날짜와 시간</h2>
+<form id="reservationForm" class="reservation-layout" data-seats="{{ seats|list|tojson }}" data-max-hours="{{ policy.max_hours }}" data-close-minute="{{ policy.close_hour * 60 }}" data-server-date="{{ today }}" data-server-minute="{{ server_minute }}">
+<section class="card"><h2 class="section-title">1. 날짜 &amp; 시간 선택</h2>
 <div class="form-group"><label for="res_date">예약 날짜 (한국 시간)</label><input type="date" id="res_date" class="form-control" min="{{ today }}" max="{{ last_date }}" required></div>
-<div class="form-group"><label for="start_time">시작 시간</label><select id="start_time" class="form-control" required><option value="">선택</option>{% for h in range(policy.open_hour, policy.close_hour) %}<option value="{{ h }}">{{ '%02d'|format(h) }}:00</option>{% endfor %}</select></div>
-<div class="form-group"><label for="end_time">종료 시간</label><select id="end_time" class="form-control" required><option value="">선택</option>{% for h in range(policy.open_hour+1, policy.close_hour+1) %}<option value="{{ h }}">{{ '%02d'|format(h) }}:00</option>{% endfor %}</select></div>
-<p class="help-text">운영 {{ policy.open_hour }}–{{ policy.close_hour }}시 · 최대 {{ policy.max_hours }}시간 · 하루 1건<br>시작 전 취소 후 다시 예약할 수 있습니다.</p>
-<p class="help-text">1–10번 고성능 PC · 물 이외 음식물 반입 금지<br>이용 당일 학생증 지참 · 이용 후 자리 정리</p>
+<div class="time-fields"><div class="form-group"><label for="start_time">시작 시간 (30분 단위)</label><select id="start_time" class="form-control" required><option value="">선택</option>{% for minute in range(policy.open_hour * 60, policy.close_hour * 60, 30) %}<option value="{{ '%02d:%02d'|format(minute // 60, minute % 60) }}">{{ '%02d:%02d'|format(minute // 60, minute % 60) }}</option>{% endfor %}</select></div>
+<div class="form-group"><label for="duration">이용 시간</label><select id="duration" class="form-control" required><option value="">선택</option>{% for minutes in range(30, policy.max_hours * 60 + 1, 30) %}<option value="{{ minutes }}">{% if minutes < 60 %}{{ minutes }}분{% elif minutes % 60 == 0 %}{{ minutes // 60 }}시간{% else %}{{ minutes // 60 }}시간 {{ minutes % 60 }}분{% endif %}</option>{% endfor %}</select></div></div>
+<input type="hidden" id="end_time">
+<p id="timeError" class="field-error" role="alert" aria-live="polite"></p>
+<p id="endTimePreview" class="time-preview" aria-live="polite">이용 시간을 선택하면 종료 시간을 보여드립니다.</p>
+<p class="help-text">운영 {{ policy.open_hour }}–{{ policy.close_hour }}시 · 최대 {{ policy.max_hours }}시간 · 하루 1건<br>예약 시작 전 또는 예약 후 5분 이내에 취소할 수 있습니다.</p>
+{% if policy.usage_notice %}<p class="help-text usage-notice">{{ policy.usage_notice }}</p>{% endif %}
 <div class="booking-summary" id="bookingSummary" aria-live="polite">날짜와 시간을 먼저 선택해 주세요.</div>
 <button class="btn btn-primary full-width" id="submitReservation" disabled>예약 확정</button>
 <p id="bookingError" role="alert"></p>
+<p class="privacy-note">예약 운영과 오남용 대응을 위해 예약 시 접속 IP 주소를 수집하며, 예약 기록과 함께 관리자만 확인합니다.</p>
 </section>
 <section class="card"><h2 class="section-title">2. 좌석 선택</h2>
 <div class="seat-legend"><span>□ 예약 가능</span><span>■ 선택</span><span>▧ 예약/점검</span></div>

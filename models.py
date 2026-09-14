@@ -1,5 +1,6 @@
 """Persistence models. Timestamps are stored as naive UTC."""
 from datetime import datetime, timezone
+from uuid import uuid4
 from flask_login import UserMixin
 from flask_sqlalchemy import SQLAlchemy
 
@@ -45,9 +46,10 @@ class Reservation(db.Model):
     student_id = db.Column(db.String(20), nullable=False)
     student_name = db.Column(db.String(50), nullable=False)
     date = db.Column(db.String(10), nullable=False, index=True)
-    start_time = db.Column(db.Integer, nullable=False)
-    end_time = db.Column(db.Integer, nullable=False)
+    start_minute = db.Column(db.Integer, nullable=False)
+    end_minute = db.Column(db.Integer, nullable=False)
     seat_number = db.Column(db.Integer, nullable=False)
+    booking_ip = db.Column(db.String(45))
     status = db.Column(db.String(20), nullable=False, default='active')
     is_attended = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
@@ -58,7 +60,8 @@ class Reservation(db.Model):
     cancelled_at = db.Column(db.DateTime)
     student = db.relationship(Student)
     __table_args__ = (
-        db.CheckConstraint('start_time >= 0 AND end_time <= 24 AND start_time < end_time', name='reservation_time_range'),
+        db.CheckConstraint('start_minute >= 0 AND end_minute <= 1440 AND start_minute < end_minute', name='reservation_time_range'),
+        db.CheckConstraint('start_minute % 30 = 0 AND end_minute % 30 = 0', name='reservation_half_hour_grid'),
         db.CheckConstraint('seat_number > 0', name='reservation_positive_seat'),
         db.CheckConstraint("status IN ('active','cancelled','completed','no_show')", name='reservation_status'),
     )
@@ -80,8 +83,8 @@ class ReservationSlot(db.Model):
     reservation_id = db.Column(db.Integer, db.ForeignKey('reservation.id'), nullable=False, index=True)
     date = db.Column(db.String(10), nullable=False)
     seat_number = db.Column(db.Integer, nullable=False)
-    hour = db.Column(db.Integer, nullable=False)
-    __table_args__ = (db.UniqueConstraint('date', 'seat_number', 'hour', name='unique_seat_hour'),)
+    minute = db.Column(db.Integer, nullable=False)
+    __table_args__ = (db.UniqueConstraint('date', 'seat_number', 'minute', name='unique_seat_minute'),)
 
 
 class DailyBooking(db.Model):
@@ -95,10 +98,32 @@ class DailyBooking(db.Model):
 class BlockedTime(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.String(10), nullable=False, index=True)
-    start_time = db.Column(db.Integer)
-    end_time = db.Column(db.Integer)
+    start_minute = db.Column(db.Integer)
+    end_minute = db.Column(db.Integer)
     seat_number = db.Column(db.Integer)
     reason = db.Column(db.String(200), nullable=False, default='운영 일정')
+    kind = db.Column(db.String(20), nullable=False, default='event')
+    group_token = db.Column(db.String(36), nullable=False, default=lambda: uuid4().hex)
+    __table_args__ = (
+        db.CheckConstraint('(start_minute IS NULL AND end_minute IS NULL) OR '
+                           '(start_minute >= 0 AND end_minute <= 1440 AND start_minute < end_minute)',
+                           name='blocked_time_range'),
+    )
+
+
+class RecurringBlock(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    weekday = db.Column(db.Integer, nullable=False)
+    start_minute = db.Column(db.Integer, nullable=False)
+    end_minute = db.Column(db.Integer, nullable=False)
+    reason = db.Column(db.String(200), nullable=False)
+    __table_args__ = (
+        db.CheckConstraint('weekday >= 0 AND weekday <= 6', name='recurring_block_weekday'),
+        db.CheckConstraint('start_minute >= 0 AND end_minute <= 1440 AND start_minute < end_minute',
+                           name='recurring_block_range'),
+        db.CheckConstraint('start_minute % 30 = 0 AND end_minute % 30 = 0',
+                           name='recurring_block_half_hour_grid'),
+    )
 
 
 class Setting(db.Model):

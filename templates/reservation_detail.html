@@ -1,11 +1,11 @@
 {% extends 'layout.html' %}{% from '_forms.html' import csrf %}
 {% block content %}
 <section class="card detail-card"><span class="status-badge">{{ r.state_label }}</span><h1 class="page-title">예약 #{{ r.id }}</h1>
-<dl class="reservation-details"><dt>이용 날짜</dt><dd>{{ r.date }} (한국 시간)</dd><dt>시간</dt><dd>{{ '%02d'|format(r.start_time) }}:00–{{ '%02d'|format(r.end_time) }}:00</dd><dt>좌석</dt><dd>PC {{ r.seat_number }}</dd><dt>예약자</dt><dd>{{ r.student.name }} · {{ r.student.student_number }}</dd></dl>
+<dl class="reservation-details"><dt>이용 날짜</dt><dd>{{ r.date }} (한국 시간)</dd><dt>시간</dt><dd>{{ r.start_minute|clock }}–{{ r.end_minute|clock }}</dd><dt>좌석</dt><dd>PC {{ r.seat_number }}</dd><dt>예약자</dt><dd>{{ r.student.name }} · {{ r.student.student_number }}</dd></dl>
 {% if r.status == 'active' and not r.is_attended %}<p class="notice-banner">입실할 때 운영진에게 학생증을 보여주세요.</p>{% endif %}
-{% if r.status == 'active' and not r.is_attended and starts_at(r) > now %}
+{% if r.status == 'active' and not r.is_attended and cancellation_allowed(r, now) %}
 <form method="post" action="{{ url_for('cancel_own_reservation', reservation_id=r.id) }}">{{ csrf() }}
 <label class="check-label"><input type="checkbox" required> 이 예약을 취소하겠습니다.</label><button class="btn btn-danger">예약 취소</button></form>
-{% elif r.status == 'active' %}<p>시작된 예약의 변경은 현장 운영진에게 문의해 주세요.</p>{% endif %}
+{% elif r.status == 'active' %}<p>예약 시작 전 또는 예약 후 5분 이내에만 직접 취소할 수 있습니다. 이후 변경은 현장 운영진에게 문의해 주세요.</p>{% endif %}
 <p class="section-intro"><a href="{{ url_for('my_reservations') }}">내 예약 목록</a></p>
 </section>{% endblock %}

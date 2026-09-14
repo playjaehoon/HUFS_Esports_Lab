@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import inspect
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from models import Admin, AuditEvent, BlockedTime, DailyBooking, Reservation, ReservationSlot, Student, db, utcnow
+from models import Admin, AuditEvent, BlockedTime, DailyBooking, RecurringBlock, Reservation, ReservationSlot, Student, db, utcnow
 from conftest import PASSWORD, booking, csrf, login, post, reserve
 
 
@@ -20,6 +20,20 @@ def test_registration_is_immediate_and_password_is_only_hashed(app):
         user = db.session.scalar(db.select(Student).where(Student.student_number == '202699999'))
         assert check_password_hash(user.password_hash, PASSWORD)
         assert not {'pin_plain', 'is_approved'} & {c['name'] for c in inspect(db.engine).get_columns('student')}
+
+
+def test_student_login_and_registration_open_reservation_screen(app):
+    client = app.test_client()
+    response = post(client, '/login', {'student_number': '202600001', 'password': PASSWORD})
+    assert response.status_code == 302
+    assert response.headers['Location'].endswith('/')
+    assert '좌석 예약' in client.get('/').get_data(as_text=True)
+
+    post(client, '/logout')
+    response = post(client, '/register', {'student_number': '202699998', 'name': 'New student',
+                                          'password': PASSWORD, 'password_confirm': PASSWORD})
+    assert response.status_code == 302
+    assert response.headers['Location'].endswith('/')
 
 
 @pytest.mark.parametrize('changes', [{'student_number': 'bad'}, {'name': '   '}, {'password': '12345'}, {'password': '12a456'}, {'password_confirm': 'different'}])
@@ -87,6 +101,7 @@ def test_reservation_survives_login_and_identity_change(app):
     with app.app_context():
         assert db.session.get(Reservation, identifier).student_pk == 1
         assert db.session.get(Reservation, identifier).student_id == '202600001'
+        assert db.session.get(Reservation, identifier).booking_ip == '127.0.0.1'
     other = login(app, student=2)
     assert other.get(detail).status_code == 404
     assert post(other, detail+'/cancel').status_code == 404
@@ -116,11 +131,17 @@ def test_imported_student_can_skip_password_change_prompt(app):
         student.must_change_password = True
         db.session.commit()
     client = login(app)
+    assert client.get('/').status_code == 200
+    assert '나중에 하기' in client.get('/').get_data(as_text=True)
     assert client.get('/my/reservations').status_code == 302
     assert post(client, '/account/skip-password-change').status_code == 302
     assert client.get('/my/reservations').status_code == 200
+    assert '나중에 하기' not in client.get('/').get_data(as_text=True)
+    post(client, '/logout')
+    assert post(client, '/login', {'student_number': '202600001', 'password': PASSWORD}).status_code == 302
+    assert '다음 로그인 때 다시 안내합니다' in client.get('/').get_data(as_text=True)
     with app.app_context():
-        assert db.session.get(Student, 1).must_change_password is False
+        assert db.session.get(Student, 1).must_change_password is True
         assert db.session.scalar(db.select(db.func.count()).select_from(AuditEvent).where(
             AuditEvent.action == 'password_change_skipped')) == 1
 
@@ -166,19 +187,70 @@ def test_concurrent_requests_create_exactly_one_booking(app, same_student):
     with app.app_context():
         assert db.session.scalar(db.select(db.func.count()).select_from(Reservation)) == 1
         assert db.session.scalar(db.select(db.func.count()).select_from(DailyBooking)) == 1
-        assert db.session.scalar(db.select(db.func.count()).select_from(ReservationSlot)) == 2
+        assert db.session.scalar(db.select(db.func.count()).select_from(ReservationSlot)) == 4
 
 
 def test_blocks_conflicts_and_settings_validation(app):
     student, admin = login(app), login(app,admin=True)
-    block = {'date':'2026-09-15','block_type':'all','seat_number':'1','reason':'Test maintenance'}
-    assert post(admin,'/admin/block',block).status_code == 302
+    block = {'start_date':'2026-09-15','end_date':'2026-09-15','block_type':'all','seat_numbers':'1','reason':'Test maintenance'}
+    assert post(admin,'/admin/block/seats',block).status_code == 302
     assert 1 in student.get('/api/availability',query_string=booking()).get_json()['blocked_seats']
     assert post(student,'/api/reserve',json=booking()).status_code == 409
     reserve(student,seat_number=2)
-    assert post(admin,'/admin/block',{**block,'seat_number':'2'}).status_code == 409
-    assert post(admin,'/admin/block',{**block,'block_type':'specific','start_time':'9'}).status_code == 400
+    assert post(admin,'/admin/block/seats',{**block,'seat_numbers':'2'}).status_code == 409
+    assert post(admin,'/admin/block/seats',{**block,'block_type':'specific','start_time':'09:00'}).status_code == 400
     assert post(admin,'/admin/settings',{'max_hours':'broken'}).status_code == 400
+
+
+def test_half_hour_booking_past_time_and_three_block_modes(app):
+    student, admin = login(app), login(app, admin=True)
+    assert post(student, '/api/reserve', json=booking(start_time='10:15', end_time='10:45')).status_code == 400
+    assert post(student, '/api/reserve', json=booking(date='2026-09-14', start_time='07:30', end_time='08:00')).status_code == 400
+    identifier = reserve(student, start_time='10:30', end_time='11:30')
+    with app.app_context():
+        reservation = db.session.get(Reservation, identifier)
+        assert (reservation.start_minute, reservation.end_minute) == (630, 690)
+        assert db.session.scalars(db.select(ReservationSlot.minute).order_by(ReservationSlot.minute)).all() == [630, 660]
+
+    event_data = {'date':'2026-09-16','block_type':'specific','start_time':'13:00','end_time':'14:30','reason':'전체 행사'}
+    assert post(admin, '/admin/block/event', event_data).status_code == 302
+    multi = {'start_date':'2026-09-17','end_date':'2026-09-19','block_type':'all','seat_numbers':['2','3','4'],'reason':'쾌적화 운영'}
+    assert post(admin, '/admin/block/seats', multi).status_code == 302
+    recurring = {'weekday':'4','start_time':'09:30','end_time':'11:00','reason':'정기 수업'}
+    assert post(admin, '/admin/block/recurring', recurring).status_code == 302
+    assert set(student.get('/api/availability', query_string=booking(date='2026-09-17')).get_json()['blocked_seats']) >= {2,3,4}
+    assert set(student.get('/api/availability', query_string=booking(date='2026-09-19')).get_json()['blocked_seats']) >= {2,3,4}
+    assert len(student.get('/api/availability', query_string=booking(date='2026-09-18', start_time='09:30', end_time='10:00')).get_json()['blocked_seats']) == 27
+    with app.app_context():
+        group = db.session.scalar(db.select(BlockedTime).where(BlockedTime.kind == 'seats'))
+        group_id = group.id
+        assert db.session.scalar(db.select(db.func.count()).select_from(BlockedTime).where(BlockedTime.kind == 'seats')) == 9
+        assert db.session.scalar(db.select(db.func.count()).select_from(RecurringBlock)) == 1
+    assert post(admin, f'/admin/unblock/{group_id}').status_code == 302
+    with app.app_context():
+        assert db.session.scalar(db.select(db.func.count()).select_from(BlockedTime).where(BlockedTime.kind == 'seats')) == 0
+
+
+def test_admin_settings_update_student_notices_and_duration_limit(app):
+    admin = login(app, admin=True)
+    response = post(admin, '/admin/settings', {
+        'reservation_open': '1', 'open_hour': '9', 'close_hour': '17',
+        'max_hours': '2', 'advance_days': '7',
+        'notice': 'Test top notice',
+        'usage_notice': 'Test rule one\nTest rule two',
+    })
+    assert response.status_code == 302
+    student = login(app)
+    body = student.get('/').get_data(as_text=True)
+    assert 'Test top notice' in body
+    assert 'Test rule one\nTest rule two' in body
+    assert 'data-max-hours="2"' in body
+    assert 'id="timeError"' in body
+    assert 'id="start_time" class="form-control"' in body
+    assert '<option value="09:00">09:00</option>' in body
+    assert '<option value="09:30">09:30</option>' in body
+    assert '날짜 &amp; 시간 선택' in body
+    assert '접속 IP 주소를 수집' in body
 
 
 def test_visit_state_guards_and_audit(app):
@@ -198,6 +270,24 @@ def test_visit_state_guards_and_audit(app):
         r = db.session.get(Reservation,identifier)
         assert r.status == 'completed' and r.checked_in_by == r.checked_out_by == 1
         assert db.session.scalar(db.select(db.func.count()).select_from(AuditEvent).where(AuditEvent.action=='check_in')) == 1
+
+
+def test_student_cancel_window_after_start(app):
+    student = login(app)
+    identifier = reserve(student, date='2026-09-14', start_time='10:00', end_time='11:00')
+    with app.app_context():
+        db.session.get(Reservation, identifier).created_at = datetime(2026, 9, 14, 1, 0)
+        db.session.commit()
+    other = login(app, student=2)
+    old = reserve(other, date='2026-09-14', start_time='10:00', end_time='11:00', seat_number=2)
+    app.config['NOW_PROVIDER'] = lambda: datetime(2026, 9, 14, 10, 3, tzinfo=ZoneInfo('Asia/Seoul'))
+    assert post(student, f'/my/reservations/{identifier}/cancel').status_code == 302
+    with app.app_context():
+        db.session.get(Reservation, old).created_at = datetime(2026, 9, 14, 0, 0)
+        db.session.commit()
+    app.config['NOW_PROVIDER'] = lambda: datetime(2026, 9, 14, 10, 10, tzinfo=ZoneInfo('Asia/Seoul'))
+    assert post(other, f'/my/reservations/{old}/cancel').status_code == 409
+    assert '예약 시작 전 또는 예약 후 5분 이내에만 직접 취소할 수 있습니다' in other.get(f'/my/reservations/{old}').get_data(as_text=True)
 
 
 def test_cancelled_future_booking_cannot_be_revived(app):
