@@ -12,7 +12,10 @@
     --danger: #ff4757;
     --success: #2ed573;
 
-    --seat-available: #f7fbff;
+    --seat-performance: #def9fb;
+    --seat-performance-border: #25b7c9;
+    --seat-arena: #edf3fb;
+    --seat-arena-border: #718ca8;
     --seat-occupied: #c8d1da;
     --seat-selected: var(--primary-color);
 }
@@ -162,25 +165,40 @@ h2.section-title {
 
 /* Seat Map Container */
 .seat-map-wrapper {
-    background: #e8ecf1;
-    border-radius: 12px;
-    padding: 2rem;
+    background: radial-gradient(circle at 50% 10%, #f8fbff 0, #e7edf4 68%);
+    border: 1px solid #d8e1ea;
+    border-radius: 8px;
+    padding: 1.5rem;
     display: flex;
     justify-content: center;
     align-items: center;
-    min-height: 400px;
+    min-height: 520px;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
 }
 
 .lab-room {
     position: relative;
-    width: 320px;
-    height: 600px;
-    background: #fff;
-    border: 3px solid #b0bec5;
-    border-radius: 8px;
+    width: 340px;
+    height: 720px;
+    background: linear-gradient(180deg, #ffffff 0%, #fbfdff 52%, #f4f8fb 100%);
+    border: 2px solid #aebdca;
+    border-radius: 10px;
     padding: 20px;
+    box-shadow: inset 0 0 0 8px rgba(219, 228, 237, .42), 0 18px 45px rgba(0, 44, 95, .1);
+}
+
+.lab-room::before {
+    content: 'EVNIA ESPORTS LAB';
+    position: absolute;
+    top: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #547087;
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .14em;
+    white-space: nowrap;
 }
 
 /* Seat Blocks */
@@ -197,42 +215,34 @@ h2.section-title {
 
 /* Specific Positions based on the floor plan */
 .left-wall-top {
-    top: 20px;
-    left: 20px;
+    top: 70px;
+    left: 24px;
 }
 
 .left-wall-bottom {
-    top: 270px;
-    left: 70px;
+    top: 370px;
+    left: 78px;
 }
 
 .center-island-top {
     top: 150px;
-    left: 150px;
-    flex-direction: row;
-    gap: 20px;
-}
-
-.center-island-top {
-    top: 150px;
-    left: 150px;
+    left: 174px;
     flex-direction: row;
     gap: 20px;
 }
 
 .center-island-bottom {
-    top: 400px;
-    left: 150px;
+    top: 425px;
+    left: 174px;
     flex-direction: row;
     gap: 20px;
 }
 
 /* Individual Seat */
 .seat {
-    width: 40px;
-    height: 40px;
-    background-color: var(--seat-available);
-    border: 2px solid #7893aa;
+    width: 46px;
+    height: 48px;
+    border: 2px solid var(--seat-arena-border);
     border-radius: 6px;
     display: flex;
     justify-content: center;
@@ -240,23 +250,44 @@ h2.section-title {
     color: #173f5b;
     font-weight: 700;
     font-size: 0.85rem;
+    padding: 0;
     cursor: pointer;
     transition: all 0.2s ease;
     user-select: none;
     box-shadow: 0 2px 5px rgba(0, 44, 95, 0.14);
 }
 
+.seat::before {
+    content: '';
+    position: absolute;
+    top: 7px;
+    bottom: 7px;
+    width: 7px;
+    border-radius: 3px;
+    background: currentColor;
+    opacity: .16;
+}
+
+.seat.faces-left { padding-left: 7px; }
+.seat.faces-left::before { left: 5px; }
+.seat.faces-right { padding-right: 7px; }
+.seat.faces-right::before { right: 5px; }
+
+.seat-performance { background: var(--seat-performance); border-color: var(--seat-performance-border); color: #075d70; }
+.seat-arena { background: var(--seat-arena); border-color: var(--seat-arena-border); color: #244c6b; }
+
 .seat:not(.occupied):hover {
     border-color: var(--primary-color);
-    transform: scale(1.05);
+    transform: translateY(-3px) scale(1.04);
+    box-shadow: 0 7px 14px rgba(0, 44, 95, .18);
 }
 
 .seat.selected {
     background-color: var(--seat-selected);
     color: white;
     border-color: var(--primary-color);
-    transform: scale(1.1);
-    box-shadow: 0 4px 8px rgba(0, 44, 95, 0.3);
+    transform: translateY(-3px) scale(1.06);
+    box-shadow: 0 0 0 3px rgba(0, 229, 255, .28), 0 7px 15px rgba(0, 44, 95, .3);
 }
 
 .seat.occupied {
@@ -264,28 +295,7 @@ h2.section-title {
     color: #4d5c68;
     border-color: #8797a5;
     cursor: not-allowed;
-    background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(0, 0, 0, 0.05) 5px, rgba(0, 0, 0, 0.05) 10px);
-}
-
-.seat.high-perf {
-    border-color: #00bcd4;
-}
-
-.seat.high-perf::after {
-    content: '★';
-    position: absolute;
-    top: -6px;
-    left: -6px;
-    font-size: 10px;
-    color: white;
-    background: #00bcd4;
-    border-radius: 50%;
-    width: 14px;
-    height: 14px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(0, 0, 0, 0.07) 5px, rgba(0, 0, 0, 0.07) 10px);
 }
 
 /* Notice Banner */
@@ -480,17 +490,49 @@ summary { cursor: pointer; font-weight: 600; padding: .7rem 0; }
 .seat-checkbox-grid label { border: 1px solid var(--border); border-radius: 8px; padding: .6rem; background: #f7fbff; }
 fieldset { border: 0; padding: 0; margin: 1rem 0; }
 legend { font-weight: 700; }
-.seat-legend { display: flex; gap: 1rem; flex-wrap: wrap; font-size: .9rem; }
+.seat-selection-card { min-width: 0; }
+.seat-zone-legend { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: .65rem; margin-bottom: 1rem; }
+.zone-key { display: grid; grid-template-columns: 18px 1fr; column-gap: .6rem; align-items: center; padding: .75rem; border: 1px solid var(--border-color); border-radius: 6px; background: #fbfdff; }
+.zone-key i { grid-row: 1 / 3; width: 18px; height: 22px; border: 2px solid; border-radius: 3px; }
+.zone-key strong { color: #173f5b; font-size: .82rem; line-height: 1.25; }
+.zone-key small { color: #647684; font-size: .72rem; }
+.zone-key.performance i { background: var(--seat-performance); border-color: var(--seat-performance-border); }
+.zone-key.arena i { background: var(--seat-arena); border-color: var(--seat-arena-border); }
+.zone-key.unavailable i { background: repeating-linear-gradient(45deg,#c8d1da,#c8d1da 4px,#b4bec8 4px,#b4bec8 8px); border-color: #8797a5; }
 #availabilityStatus { margin: 1rem 0; min-height: 3em; }
 #bookingError { margin-top: 1rem; color: #9b2330; }
-.lab-room { flex: 0 0 320px; }
+.lab-room { flex: 0 0 340px; }
 .left-wall-top, .left-wall-bottom, .center-island-top, .center-island-bottom { position: absolute; }
-.island-grid { display: grid; grid-template-columns: repeat(2,44px); gap: 6px 16px; }
-.seat-col { gap: 6px; }
-.seat { position: relative; width: 44px; height: 44px; font-family: inherit; }
+.island-grid { display: grid; grid-template-columns: repeat(2,46px); gap: 7px 16px; }
+.seat-col { gap: 7px; }
+.seat { position: relative; width: 46px; height: 48px; font-family: inherit; }
 .seat:disabled { cursor: not-allowed; }
 .seat:disabled:not(.occupied) { opacity: .82; background: #eef5fa; color: #31566f; }
-.seat.high-perf::after { pointer-events: none; }
+.seat-detail-dialog { width: min(780px,calc(100vw - 2rem)); max-height: min(88vh,820px); margin: auto; padding: 0; border: 0; border-radius: 10px; color: var(--text-main); box-shadow: 0 28px 80px rgba(0,24,55,.32); overflow: auto; }
+.seat-detail-dialog[open] { animation: dialog-in .18s ease-out; }
+.seat-detail-dialog::backdrop { background: rgba(0,24,55,.58); backdrop-filter: blur(3px); }
+.seat-dialog-header { display: flex; justify-content: space-between; gap: 1rem; padding: 1.5rem 1.5rem 1rem; background: linear-gradient(135deg,#f7fbff,#eef5fa); }
+.seat-dialog-header h3 { margin: .55rem 0 .25rem; color: var(--primary-color); font-size: 1.55rem; }
+.seat-dialog-header p { color: #4d6475; }
+.zone-pill { display: inline-flex; padding: .3rem .65rem; border-radius: 4px; font-size: .75rem; font-weight: 800; letter-spacing: .02em; }
+.zone-pill.performance { color: #075d70; background: #d7f7fa; }
+.zone-pill.arena { color: #284c68; background: #e1eaf4; }
+.dialog-close { flex: 0 0 42px; width: 42px; height: 42px; border: 0; border-radius: 50%; background: #fff; color: #21445f; font-size: 1.6rem; line-height: 1; cursor: pointer; box-shadow: 0 4px 14px rgba(0,44,95,.1); }
+.seat-equipment-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1rem; padding: 1.25rem 1.5rem 0; }
+.equipment-card { border: 1px solid #dbe5ed; border-radius: 8px; overflow: hidden; background: #fff; }
+.equipment-image { height: 190px; min-height: 0; display: grid; place-items: center; overflow: hidden; background: radial-gradient(circle,#fff 0,#f3f7fa 72%); padding: 1rem; }
+.equipment-image img { display: block; width: 100%; height: 158px; object-fit: contain; }
+.equipment-image.chair { padding: .6rem 1.2rem; }
+.equipment-image.chair img { height: 170px; }
+.equipment-card > div:last-child { padding: 1rem; }
+.equipment-card span, .seat-pc-spec span { display: block; margin-bottom: .25rem; color: #688092; font-size: .7rem; font-weight: 800; letter-spacing: .12em; }
+.equipment-card h4 { margin-bottom: .35rem; color: #173f5b; }
+.equipment-card p { color: #536b7c; font-size: .86rem; line-height: 1.5; }
+.seat-pc-spec { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 1rem 1.5rem 0; padding: 1rem 1.15rem; border-radius: 6px; background: #eef5fa; }
+.seat-pc-spec span { margin: 0; }
+.seat-pc-spec strong { color: var(--primary-color); }
+.seat-dialog-actions { display: flex; justify-content: flex-end; gap: .75rem; padding: 1.25rem 1.5rem 1.5rem; }
+@keyframes dialog-in { from { opacity: 0; transform: translateY(12px) scale(.98); } to { opacity: 1; transform: none; } }
 .btn:disabled { opacity: .55; cursor: not-allowed; transform: none; }
 button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid #1586ae; outline-offset: 3px; }
 @media(max-width:700px) {
@@ -504,4 +546,48 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px soli
     .admin-actions { min-width: 0; width: 100%; }
     .auth-card { margin: 1rem auto; }
     .seat-map-wrapper { justify-content: flex-start; }
+    .seat-zone-legend { grid-template-columns: 1fr; }
+    .seat-detail-dialog { width: 100%; max-width: none; max-height: 92dvh; margin: auto 0 0; border-radius: 10px 10px 0 0; }
+    .seat-equipment-grid { grid-template-columns: 1fr; }
+    .equipment-image { height: 165px; }
+    .equipment-image img { height: 133px; }
+    .equipment-image.chair img { height: 145px; }
+    .seat-dialog-header { padding: 1.25rem 1rem .9rem; }
+    .seat-equipment-grid { padding: 1rem 1rem 0; }
+    .seat-pc-spec { margin: 1rem 1rem 0; align-items: flex-start; flex-direction: column; gap: .25rem; }
+    .seat-dialog-actions { padding: 1rem; }
+    .seat-dialog-actions .btn { flex: 1; padding-inline: .75rem; }
+}
+@media(max-width:480px) {
+    .container { padding-inline: .5rem; }
+    .card { padding: 1rem; }
+    .seat-map-wrapper { padding: .5rem; justify-content: center; overflow-x: hidden; }
+    .lab-room { width: 286px; height: 620px; flex-basis: 286px; border-radius: 8px; }
+    .left-wall-top { top: 64px; left: 18px; }
+    .left-wall-bottom { top: 322px; left: 64px; }
+    .center-island-top { top: 128px; left: 145px; }
+    .center-island-bottom { top: 368px; left: 145px; }
+    .island-grid { grid-template-columns: repeat(2,40px); gap: 6px 12px; }
+    .seat-col { gap: 6px; }
+    .seat { width: 40px; height: 42px; border-radius: 5px; }
+    .seat::before { top: 6px; bottom: 6px; width: 6px; }
+    .seat.faces-left::before { left: 4px; }
+    .seat.faces-right::before { right: 4px; }
+}
+
+@media(max-width:340px) {
+    .lab-room { width: 244px; height: 516px; flex-basis: 244px; padding: 12px; }
+    .lab-room::before { top: 13px; font-size: .58rem; }
+    .left-wall-top { top: 55px; left: 14px; }
+    .left-wall-bottom { top: 264px; left: 51px; }
+    .center-island-top { top: 110px; left: 122px; }
+    .center-island-bottom { top: 310px; left: 122px; }
+    .island-grid { grid-template-columns: repeat(2,34px); gap: 4px 8px; }
+    .seat-col { gap: 4px; }
+    .seat { width: 34px; height: 36px; padding: 0; font-size: .72rem; }
+    .seat::before { top: 5px; bottom: 5px; width: 5px; }
+    .seat.faces-left { padding-left: 5px; }
+    .seat.faces-left::before { left: 3px; }
+    .seat.faces-right { padding-right: 5px; }
+    .seat.faces-right::before { right: 3px; }
 }

@@ -18,10 +18,25 @@
 <p id="bookingError" role="alert"></p>
 <p class="privacy-note">예약 운영과 오남용 대응을 위해 예약 시 접속 IP 주소를 수집하며, 예약 기록과 함께 관리자만 확인합니다.</p>
 </section>
-<section class="card"><h2 class="section-title">2. 좌석 선택</h2>
-<div class="seat-legend"><span>□ 예약 가능</span><span>■ 선택</span><span>▧ 예약/점검</span></div>
+<section class="card seat-selection-card"><h2 class="section-title">2. 좌석 선택</h2>
+<div class="seat-zone-legend" aria-label="좌석 구역 안내">
+<span class="zone-key performance"><i aria-hidden="true"></i><strong>Evnia Performance Zone</strong><small>PC 1–10</small></span>
+<span class="zone-key arena"><i aria-hidden="true"></i><strong>Evnia Gaming Zone</strong><small>PC 11–27</small></span>
+<span class="zone-key unavailable"><i aria-hidden="true"></i><strong>예약/점검</strong><small>선택할 수 없음</small></span>
+</div>
 <p id="availabilityStatus" role="status">날짜와 시간을 선택하면 좌석 상태를 확인합니다.</p>
 <div class="seat-map-wrapper"><div class="lab-room" id="labRoom" aria-label="실습실 좌석도"></div></div>
+<dialog id="seatDetailDialog" class="seat-detail-dialog" aria-labelledby="seatDetailTitle"
+        data-performance-monitor="{{ url_for('static', filename='images/equipment/evnia-27m2n3500uk.avif') }}"
+        data-arena-monitor="{{ url_for('static', filename='images/equipment/evnia-24m2n3200l.avif') }}">
+<div class="seat-dialog-header"><div><span id="seatZoneBadge" class="zone-pill"></span><h3 id="seatDetailTitle">좌석 장비 안내</h3><p id="seatZoneDescription"></p></div><button id="closeSeatDialog" class="dialog-close" type="button" aria-label="좌석 상세 닫기">×</button></div>
+<div class="seat-equipment-grid">
+<article class="equipment-card"><div class="equipment-image"><img id="seatMonitorImage" src="" alt=""></div><div><span>DISPLAY</span><h4 id="seatMonitorModel"></h4><p id="seatMonitorSpecs"></p></div></article>
+<article class="equipment-card"><div class="equipment-image chair"><img src="{{ url_for('static', filename='images/equipment/dxracer-martian-pro.png') }}" alt="DXRacer Martian Pro 게이밍 의자"></div><div><span>CHAIR</span><h4>DXRacer Martian Pro</h4><p>전동 조절식 등받이 · 스마트 에어백 요추 지지대</p></div></article>
+</div>
+<div class="seat-pc-spec"><span>GRAPHICS</span><strong id="seatGpuModel"></strong></div>
+<div class="seat-dialog-actions"><button id="cancelSeatDialog" class="btn btn-secondary" type="button">다른 좌석 보기</button><button id="confirmSeat" class="btn btn-primary" type="button">이 좌석 선택</button></div>
+</dialog>
 </section>
 </form><script src="{{ url_for('static', filename='js/main.js') }}" defer></script>
 {% endblock %}

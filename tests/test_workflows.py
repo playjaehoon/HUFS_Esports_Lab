@@ -251,6 +251,12 @@ def test_admin_settings_update_student_notices_and_duration_limit(app):
     assert '<option value="09:30">09:30</option>' in body
     assert '날짜 &amp; 시간 선택' in body
     assert '접속 IP 주소를 수집' in body
+    assert 'Evnia Performance Zone' in body
+    assert 'Evnia Gaming Zone' in body
+    assert 'id="seatDetailDialog"' in body
+    assert 'evnia-27m2n3500uk.avif' in body
+    assert 'evnia-24m2n3200l.avif' in body
+    assert 'dxracer-martian-pro.png' in body
 
 
 def test_visit_state_guards_and_audit(app):
