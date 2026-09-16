@@ -129,7 +129,7 @@ def test_import_preserves_source_and_converts_security_and_relations(
     assert rows(output, 'SELECT value FROM setting WHERE key="max_hours"') == [('2',)]
     assert rows(output, 'SELECT value FROM setting WHERE key="open_hour"') == [('9',)]
     assert rows(output, 'SELECT action FROM audit_event') == [('legacy_import',)]
-    assert rows(output, 'SELECT version_num FROM alembic_version') == [('0004',)]
+    assert rows(output, 'SELECT version_num FROM alembic_version') == [('0005',)]
     assert rows(output, 'PRAGMA integrity_check') == [('ok',)]
     assert rows(output, 'PRAGMA foreign_key_check') == []
     with closing(sqlite3.connect(output)) as connection:
@@ -186,7 +186,7 @@ def test_empty_version_table_from_older_failed_upgrade_can_be_imported(legacy, t
     with migration_app(tmp_path / 'cli.db') as app, app.app_context():
         import_legacy(legacy, output, 'UTC')
     assert legacy.read_bytes() == before
-    assert rows(output, 'SELECT version_num FROM alembic_version') == [('0004',)]
+    assert rows(output, 'SELECT version_num FROM alembic_version') == [('0005',)]
 
 
 def test_fresh_upgrade_is_versioned_and_safe_to_repeat(tmp_path):
@@ -194,10 +194,10 @@ def test_fresh_upgrade_is_versioned_and_safe_to_repeat(tmp_path):
     with migration_app(database) as app:
         result = upgrade(app)
         assert result.exit_code == 0, result.output
-        assert rows(database, 'SELECT version_num FROM alembic_version') == [('0004',)]
+        assert rows(database, 'SELECT version_num FROM alembic_version') == [('0005',)]
         result = upgrade(app)
         assert result.exit_code == 0, result.output
-    assert rows(database, 'SELECT version_num FROM alembic_version') == [('0004',)]
+    assert rows(database, 'SELECT version_num FROM alembic_version') == [('0005',)]
     assert rows(database, 'PRAGMA integrity_check') == [('ok',)]
 
 
