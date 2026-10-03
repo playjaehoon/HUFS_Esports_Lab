@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const room = document.getElementById('labRoom'), date = document.getElementById('res_date');
     const start = document.getElementById('start_time'), duration = document.getElementById('duration');
     const end = document.getElementById('end_time'), submit = document.getElementById('submitReservation');
+    const agreement = document.getElementById('usageAgreement');
     const status = document.getElementById('availabilityStatus'), summary = document.getElementById('bookingSummary');
     const error = document.getElementById('bookingError'), timeError = document.getElementById('timeError');
     const endPreview = document.getElementById('endTimePreview');
@@ -83,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         summary.textContent = `${date.value} · ${start.value}–${end.value} · PC ${number}`;
         status.textContent = `PC ${number}을 선택했습니다.`;
-        submit.disabled = false;
+        submit.disabled = !agreement.checked;
         detailDialog.close();
     }
 
@@ -131,11 +132,12 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (failure) { if (failure.name !== 'AbortError' && requestVersion === version) status.textContent=failure.message || '연결을 확인하고 시간을 다시 선택해 주세요.'; }
     }
     [date,start,duration].forEach(field => field.addEventListener('change',availability));
+    agreement.addEventListener('change', () => { submit.disabled = !ready || selected === null || !agreement.checked || pending; });
     form.addEventListener('submit', async event => {
-        event.preventDefault(); if (!ready || selected===null || pending) return;
+        event.preventDefault(); if (!ready || selected===null || !agreement.checked || pending) return;
         pending=true; submit.disabled=true; [date,start,duration].forEach(field => field.disabled=true);
         try {
-            const response = await fetch('/api/reserve',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify({date:date.value,start_time:start.value,end_time:end.value,seat_number:selected})});
+            const response = await fetch('/api/reserve',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify({date:date.value,start_time:start.value,end_time:end.value,seat_number:selected,usage_agreed:true})});
             const data = await response.json(); if (!response.ok || !data.success) throw new Error(data.message || '예약에 실패했습니다.'); window.location.assign(data.redirect_url);
         } catch (failure) { await availability(); error.textContent=`${failure.message || '연결 오류가 발생했습니다.'} 내 예약에서 처리 여부를 확인해 주세요.`; }
         finally { pending=false; [date,start,duration].forEach(field => field.disabled=false); }

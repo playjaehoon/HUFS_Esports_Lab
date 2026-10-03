@@ -1,12 +1,14 @@
 # PythonAnywhere 배포·이관·복구 가이드
 
-이 문서는 **로컬 개선판을 앞으로 배포하는 절차**입니다. 이번 작업에서는 운영 서버·DB·설정을 변경하지 않았습니다. 실제 서버에 로그인해 경로와 스키마를 확인하기 전에는 아래 예시를 그대로 실행하지 않습니다.
+이 문서는 **로컬 변경을 운영에 반영하는 절차**입니다. 2026-10-03 공개 홈·게시판·학과 선택 작업은 아직 운영 서버·DB·설정을 변경하지 않았습니다. 실제 서버의 현재 커밋과 스키마를 확인하기 전에는 아래 예시를 그대로 실행하지 않습니다. 게시판은 Alembic `0006`, 학과·긴 이용 안내는 `0007`, 사진 처리는 새 `Pillow` 의존성이 필요합니다.
 
 ## 먼저 확보할 운영 정보
 
 - 공개 사이트: [hufsesports.pythonanywhere.com](https://hufsesports.pythonanywhere.com/)
 - 관리 페이지: [PythonAnywhere hufsesports](https://www.pythonanywhere.com/user/hufsesports/). 현재 점검 환경에서는 로그인 필요.
 - 초기 진단 소스: `e0681a0`. 실제 운영 버전과 일치하는지는 미확인.
+
+공개 홈·게시판 배포 후에는 `/`의 사진 5장·3초 전환·아이콘 메뉴·이용 방법 4컷·최근 글·주소·문의 메일, `/gallery`·`/notices`의 목록·상세, 관리자 `게시글 관리`의 등록·사진 업로드, `/reserve`의 비로그인 로그인 이동과 로그인 후 예약 화면, 공유 카드의 제목·설명·사진을 함께 확인합니다. 관리자 화면에서 예약 IP 확인·삭제도 시험하고, 기관의 개인정보 보관 기준에 따라 실제 운영 절차를 정합니다. 메신저의 기존 공유 카드는 캐시 때문에 바로 갱신되지 않을 수 있습니다.
 
 | 내부 운영 기록에 남길 항목 | 현재 상태 |
 | --- | --- |
@@ -28,6 +30,7 @@
 | `APP_ENV` | `production` (생략해도 보안 쿠키 기본 활성화) |
 | `SECRET_KEY` | 비공개 무작위 키. Git·화면·로그에 출력하지 않음 |
 | `DATABASE_URL` | 확인한 SQLite 절대 경로. 다른 DB 엔진은 현재 거절 |
+| `BOARD_UPLOAD_DIR` | 선택 사항. 비우면 앱 `instance/board_uploads/`에 갤러리 사진 저장. 웹 서버가 쓸 수 있고 백업 대상에 포함할 경로 |
 | 개발 설정 | `APP_ENV=development`는 로컬 HTTP 연습에만 사용 |
 
 운영 의존성은 별도 virtualenv에 `python -m pip install -r requirements.txt`로 설치합니다. Python 버전은 로컬 검증 환경과 서버 지원 범위를 함께 확인합니다. PythonAnywhere는 virtualenv·WSGI 연결 방식으로 Flask를 실행합니다. [공식 Flask 배포 안내](https://help.pythonanywhere.com/pages/Flask/)
@@ -57,6 +60,10 @@ from app import app as application
 | 서버가 수정한 알 수 없는 스키마 | 중지하고 테이블·컬럼·데이터 규칙을 먼저 대조 |
 
 초기 Alembic revision `0001`은 **빈 DB 전용**이며 기존 테이블이 있으면 거절합니다. 운영 DB에 `create_all()`, `init_db.py`, `flask db stamp head`를 실행해 변환을 생략하지 않습니다. `0001`의 downgrade는 테이블을 제거하므로 운영 복구 명령으로 사용하지 않습니다.
+
+### 공개 홈·게시판·학과 변경(`0007`) 적용 전 확인
+
+서버가 아직 이전 코드라면 GitHub에 검토된 커밋을 반영한 뒤 virtualenv에서 `python -m pip install -r requirements.txt`를 실행합니다. 실제 운영 DB를 SQLite 백업 API로 백업하고 현재 `alembic_version`을 확인한 다음, **앱이 쓰기를 받지 않는 점검 시간**에 `python -m flask --app app db upgrade`를 실행합니다. `0006`은 새 게시글 테이블을 만들고 기존 예약 상단 공지를 첫 공지 글로 복사합니다. `0007`은 기존 학생에게 빈 학과 칸을 추가하고 이용 안내 설정의 길이 제한을 확장합니다. 기존 학생의 예약·계정은 유지되며 본인이 내 정보에서 학과를 선택할 수 있습니다. 새 갤러리 사진 파일은 기본적으로 `instance/board_uploads/`에 저장되며 DB 파일과 함께 백업해야 상세 화면이 복구됩니다. `static/images/home/`의 슬라이드 사진 5장은 코드와 함께 배포됩니다. 마이그레이션 후 `board_post` 초기 글과 학생·설정 스키마를 확인하고 Web 탭에서 Reload합니다. `0006` downgrade는 게시글을 삭제하므로 복구 수단으로 실행하지 않습니다. 실패하면 새 코드만 되돌리는 것으로 충분하지 않으므로 점검 중 확보한 DB·업로드 폴더·해당 커밋을 함께 복원합니다.
 
 ### 기존 초기 DB를 옮기는 순서
 

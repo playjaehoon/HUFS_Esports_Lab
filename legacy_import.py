@@ -16,7 +16,7 @@ from flask_migrate import upgrade
 from sqlalchemy import text
 
 from booking import DEFAULTS, SEATS, parse_date
-from models import (Admin, AuditEvent, BlockedTime, DailyBooking, Reservation,
+from models import (Admin, AuditEvent, BlockedTime, BoardPost, DailyBooking, Reservation,
                     ReservationSlot, Setting, Student, StudentNumberClaim, db)
 
 LEGACY_COLUMNS = {
@@ -138,6 +138,18 @@ def import_legacy(source, output, legacy_timezone):
                         setting.value = value
                     else:
                         db.session.add(Setting(key=key, value=value))
+                # The migration creates a sample public notice before legacy settings
+                # are copied. Keep its text in sync with the imported notice instead.
+                imported_notice = db.session.scalar(db.select(BoardPost).where(
+                    BoardPost.category == 'notice', BoardPost.title == '실습실 이용 안내'))
+                if imported_notice and values['notice'].strip():
+                    imported_notice.body = values['notice'].strip()
+                elif imported_notice:
+                    db.session.delete(imported_notice)
+                elif values['notice'].strip():
+                    db.session.add(BoardPost(category='notice', title='실습실 이용 안내',
+                                             body=values['notice'].strip(), created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+                                             updated_at=datetime.now(timezone.utc).replace(tzinfo=None)))
                 db.session.add(AuditEvent(actor='server-cli', action='legacy_import', target='database', reason='Read-only source; new database'))
                 db.session.commit()
                 for model, table in [(Admin, 'admin'), (Student, 'student'), (Reservation, 'reservation'), (BlockedTime, 'blocked_time')]:

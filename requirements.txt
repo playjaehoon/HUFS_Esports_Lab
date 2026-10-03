@@ -6,3 +6,4 @@ Flask-WTF==1.2.2
 Flask-Migrate==4.1.0
 python-dotenv==1.2.3
 tzdata==2026.4
+Pillow==12.3.0

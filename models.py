@@ -25,6 +25,7 @@ class Student(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     student_number = db.Column(db.String(9), unique=True, nullable=False)
     name = db.Column(db.String(50), nullable=False)
+    department = db.Column(db.String(100))
     password_hash = db.Column(db.String(255), nullable=False)
     blocked_until = db.Column(db.DateTime)
     archived = db.Column(db.Boolean, nullable=False, default=False)
@@ -129,7 +130,24 @@ class RecurringBlock(db.Model):
 class Setting(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     key = db.Column(db.String(50), unique=True, nullable=False)
-    value = db.Column(db.String(255), nullable=False)
+    value = db.Column(db.Text, nullable=False)
+
+
+class BoardPost(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    category = db.Column(db.String(10), nullable=False, index=True)
+    title = db.Column(db.String(120), nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    image_path = db.Column(db.String(200))
+    image_alt = db.Column(db.String(160))
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow, index=True)
+    updated_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+    __table_args__ = (
+        db.CheckConstraint("category IN ('notice','gallery')", name='board_post_category'),
+        db.CheckConstraint("(category = 'notice' AND image_path IS NULL) OR "
+                           "(category = 'gallery' AND image_path IS NOT NULL)",
+                           name='board_post_gallery_image'),
+    )
 
 
 class AuditEvent(db.Model):
