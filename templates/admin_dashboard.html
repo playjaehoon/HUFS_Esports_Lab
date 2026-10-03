@@ -1,12 +1,14 @@
 {% extends 'layout.html' %}{% from '_forms.html' import csrf, input, half_hour_select %}
 {% block content %}
 <h1 class="page-title">당일 이용 관리</h1>
+<nav class="admin-content-links" aria-label="홈페이지 콘텐츠 관리"><a href="#operation-settings">이용 시 유의사항 수정</a><a href="{{ url_for('admin_posts', category='notice') }}">공지사항 관리</a><a href="{{ url_for('admin_posts', category='gallery') }}">갤러리 관리</a></nav>
 <form class="filter-row" method="get"><label>날짜 <input class="form-control" type="date" name="date" value="{{ day }}" required></label><label>이름·학번 <input class="form-control" name="q" value="{{ term }}" maxlength="50"></label><button class="btn btn-primary">조회</button></form>
 <section class="card"><h2 class="section-title">{{ day }} 예약 · {{ reservations|length }}건</h2>
 {% for r in reservations %}
 <article class="admin-reservation">
 <div><span class="status-badge">{{ r.state_label }}</span><h3>{{ r.start_minute|clock }}–{{ r.end_minute|clock }} · PC {{ r.seat_number }}</h3>
 <p>{{ r.student.name }} · {{ r.student.student_number }} · 예약 #{{ r.id }}{% if r.booking_ip %} · 접속 IP {{ r.booking_ip }}{% endif %}</p>
+{% if r.booking_ip %}<form method="post" action="{{ url_for('admin_clear_booking_ip', reservation_id=r.id) }}" class="inline-form">{{ csrf() }}<button class="btn btn-secondary" type="submit">확인 후 IP 삭제</button></form>{% endif %}
 {% if r.status != 'active' or r.is_attended %}<small>기록 당시: {{ r.student_name }} · {{ r.student_id }}</small>{% endif %}</div>
 <div class="admin-actions">
 {% if r.status == 'active' %}
@@ -24,11 +26,13 @@
 {% endif %}</div></article>
 {% else %}<p class="empty-state">해당 날짜에 예약이 없습니다.</p>{% endfor %}</section>
 <div class="account-grid">
-<details class="card" id="operation-settings" open><summary>공지 및 예약 운영 설정</summary><form method="post" action="{{ url_for('admin_settings') }}">{{ csrf() }}
+<details class="card" id="operation-settings" open><summary>이용 시 유의사항 · 예약 운영 설정</summary><form method="post" action="{{ url_for('admin_settings') }}">{{ csrf() }}
 {{ input('notice', '예약 화면 상단 공지', value=policy.notice, maxlen=255, required=false) }}
-<label class="form-group" for="usage_notice">예약 화면 이용 안내</label>
-<textarea class="form-control" id="usage_notice" name="usage_notice" maxlength="255" rows="4">{{ policy.usage_notice }}</textarea>
-<p class="help-text">상단 공지는 예약 화면의 강조 상자에 표시됩니다. 이용 안내는 시간 선택 아래에 표시되며 줄바꿈도 유지됩니다.</p>
+<label class="form-group" for="usage_notice">홈 주요 유의사항</label>
+<textarea class="form-control" id="usage_notice" name="usage_notice" maxlength="500" rows="4">{{ policy.usage_notice }}</textarea>
+<label class="form-group" for="usage_details">상세 이용 동의사항</label>
+<textarea class="form-control" id="usage_details" name="usage_details" maxlength="3000" rows="7" required>{{ policy.usage_details }}</textarea>
+<p class="help-text">짧은 안내는 메인페이지에, 자세한 안내는 메인페이지와 예약 확인 단계에 표시됩니다.</p>
 <label class="form-group">예약 접수<select class="form-control" name="reservation_open"><option value="1" {% if policy.reservation_open=='1' %}selected{% endif %}>열기</option><option value="0" {% if policy.reservation_open=='0' %}selected{% endif %}>중지</option></select></label>
 {% for key,label in [('open_hour','운영 시작 (시)'),('close_hour','운영 종료 (시)'),('max_hours','최대 예약 시간'),('advance_days','예약 가능 기간 (오늘부터 일수)')] %}
 {{ input(key, label, 'number', value=policy[key]) }}{% endfor %}

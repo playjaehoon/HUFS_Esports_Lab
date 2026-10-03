@@ -1,5 +1,5 @@
 """Application factory used by WSGI, CLI and isolated tests."""
-from datetime import timedelta
+from datetime import timedelta, timezone
 import os
 from pathlib import Path
 
@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from werkzeug.exceptions import HTTPException
 
 from models import Admin, Student, db
-from booking import RuleError, clock
+from booking import KOREA, RuleError, clock, korea_now
 
 
 def create_app(test_config=None):
@@ -29,11 +29,17 @@ def create_app(test_config=None):
         SESSION_COOKIE_SECURE=os.environ.get('APP_ENV', 'production') != 'development',
         PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
         MAX_CONTENT_LENGTH=32 * 1024,
+        BOARD_UPLOAD_DIR=os.environ.get('BOARD_UPLOAD_DIR'),
         AUTH_RATE_LIMIT_ENABLED=True,
     )
     if test_config:
         app.config.update(test_config)
     app.jinja_env.filters['clock'] = clock
+    app.jinja_env.filters['kst_date'] = lambda value: value.replace(tzinfo=timezone.utc).astimezone(KOREA).strftime('%Y.%m.%d')
+
+    @app.context_processor
+    def shared_template_values():
+        return {'current_year': korea_now().year}
     if not app.secret_key or len(app.secret_key) < 32:
         raise RuntimeError('SECRET_KEY에 새로 생성한 32자 이상의 무작위 키를 설정하세요.')
     if not app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite:'):
@@ -47,6 +53,14 @@ def create_app(test_config=None):
             cursor.execute('PRAGMA secure_delete=ON')
             cursor.close()
     Migrate(app, db, render_as_batch=True)
+
+    @app.before_request
+    def board_form_size():
+        # CSRFProtect parses request.form before the view function, so enlarge
+        # the limit before its hook only for staff post forms.
+        if request.endpoint in {'admin_post_new', 'admin_post_edit'}:
+            request.max_content_length = 6 * 1024 * 1024
+
     CSRFProtect(app)
     login = LoginManager(app)
 
@@ -73,7 +87,8 @@ def create_app(test_config=None):
         if current_user.is_authenticated and isinstance(current_user._get_current_object(), Student):
             if (current_user.must_change_password and not session.get('password_change_skipped') and
                     request.endpoint not in {
-                    'index', 'account', 'change_password', 'skip_password_change', 'logout', 'static'}):
+                    'home', 'index', 'gallery_board', 'gallery_post', 'notice_board', 'notice_post',
+                    'board_image', 'account', 'change_password', 'skip_password_change', 'logout', 'static'}):
                 if request.path.startswith('/api/'):
                     raise RuleError('내 정보에서 비밀번호를 먼저 변경해 주세요.', 403)
                 return redirect(url_for('account'))
@@ -125,7 +140,9 @@ def create_app(test_config=None):
         return error('서비스 점검 중입니다. 잠시 후 다시 시도해 주세요.', 503)
 
     from routes import register_routes
+    from board_routes import register_board_routes
     from commands import register_commands
     register_routes(app)
+    register_board_routes(app)
     register_commands(app)
     return app

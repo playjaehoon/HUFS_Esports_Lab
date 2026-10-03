@@ -1,0 +1,16 @@
+{% extends 'layout.html' %}
+{% block title %}{{ '갤러리' if category == 'gallery' else '공지사항' }} | Philips Evnia Esports Lab{% endblock %}
+{% block body_class %}board-page{% endblock %}
+{% block content %}
+<div class="board-shell">
+    <p class="board-breadcrumb"><a href="{{ url_for('home') }}">홈</a> / {{ '갤러리' if category == 'gallery' else '공지사항' }}</p>
+    <div class="board-heading"><h1>{{ '갤러리' if category == 'gallery' else '공지사항' }}</h1></div>
+    <nav class="board-tabs" aria-label="게시판 선택"><a class="{{ 'active' if category == 'notice' else '' }}" href="{{ url_for('notice_board') }}" {% if category == 'notice' %}aria-current="page"{% endif %}>공지사항</a><a class="{{ 'active' if category == 'gallery' else '' }}" href="{{ url_for('gallery_board') }}" {% if category == 'gallery' %}aria-current="page"{% endif %}>갤러리</a></nav>
+    {% if category == 'gallery' %}
+    <div class="board-gallery-grid">{% for post in posts.items %}<a class="gallery-post" href="{{ url_for('gallery_post', post_id=post.id) }}"><img src="{{ url_for('board_image', post_id=post.id) }}" alt="{{ post.image_alt }}" loading="lazy"><span class="gallery-post-meta">{{ post.created_at|kst_date }}</span><strong>{{ post.title }}</strong></a>{% else %}<p class="board-empty">등록된 사진이 없습니다.</p>{% endfor %}</div>
+    {% else %}
+    <div class="notice-post-list notice-board-list">{% for post in posts.items %}<a href="{{ url_for('notice_post', post_id=post.id) }}"><span class="notice-post-date">{{ post.created_at|kst_date }}</span><strong>{{ post.title }}</strong><span aria-hidden="true">↗</span></a>{% else %}<p class="board-empty">등록된 공지사항이 없습니다.</p>{% endfor %}</div>
+    {% endif %}
+    <nav class="board-pagination" aria-label="게시판 페이지">{% if posts.has_prev %}<a href="{{ url_for('gallery_board' if category == 'gallery' else 'notice_board', page=posts.prev_num) }}">← 이전</a>{% endif %}<span>{{ posts.page }} / {{ posts.pages or 1 }}</span>{% if posts.has_next %}<a href="{{ url_for('gallery_board' if category == 'gallery' else 'notice_board', page=posts.next_num) }}">다음 →</a>{% endif %}</nav>
+</div>
+{% endblock %}

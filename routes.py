@@ -10,11 +10,12 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from sqlalchemy.orm import joinedload
 
 from auth_helpers import admin_required, student_required, throttle
+from departments import DEPARTMENT_GROUPS, OTHER_CHOICES, department_form_value, selected_department
 from booking import (SEATS, RuleError, allowed_student, blocked_seats, booking_input,
                      clock, ends_at, event, integer, korea_now, parse_date, release, rules,
                      time_minutes, cancellation_allowed,
                      starts_at, write_transaction)
-from models import (Admin, AuditEvent, BlockedTime, DailyBooking, RecurringBlock, Reservation,
+from models import (Admin, AuditEvent, BlockedTime, BoardPost, DailyBooking, RecurringBlock, Reservation,
                     ReservationSlot, Setting, Student, StudentNumberClaim, db, utcnow)
 
 
@@ -61,6 +62,16 @@ def claim_number(number, owner):
 
 def register_routes(app):
     @app.route('/')
+    def home():
+        recent_gallery = db.session.scalars(db.select(BoardPost).where(BoardPost.category == 'gallery').order_by(
+            BoardPost.created_at.desc(), BoardPost.id.desc()).limit(3)).all()
+        recent_notices = db.session.scalars(db.select(BoardPost).where(BoardPost.category == 'notice').order_by(
+            BoardPost.created_at.desc(), BoardPost.id.desc()).limit(3)).all()
+        policy = rules()
+        return render_template('home.html', recent_gallery=recent_gallery, recent_notices=recent_notices,
+                               usage_notice=policy['usage_notice'], usage_details=policy['usage_details'])
+
+    @app.route('/reserve')
     @login_required
     def index():
         if isinstance(current_user._get_current_object(), Admin):
@@ -98,12 +109,14 @@ def register_routes(app):
             return redirect(url_for('index'))
         if request.method == 'POST':
             number, name = identity(request.form)
+            department = selected_department(request.form.get('department'), request.form.get('department_other'))
             throttle('register', number, limit=5)
             password = valid_password(request.form.get('password'))
             if password != request.form.get('password_confirm'):
                 raise RuleError('비밀번호 확인이 일치하지 않습니다.')
             with write_transaction():
-                user = Student(student_number=number, name=name, password_hash=generate_password_hash(password))
+                user = Student(student_number=number, name=name, department=department,
+                               password_hash=generate_password_hash(password))
                 db.session.add(user)
                 db.session.flush()
                 claim_number(number, user.id)
@@ -113,7 +126,8 @@ def register_routes(app):
             session.permanent = True
             flash('가입이 완료되었습니다. 예약 후 이용 당일 학생증을 보여주세요.')
             return redirect(url_for('index'))
-        return render_template('student_register.html')
+        return render_template('student_register.html', department_groups=DEPARTMENT_GROUPS,
+                               other_choices=OTHER_CHOICES)
 
     @app.route('/logout', methods=['POST'])
     @app.route('/admin/logout', methods=['POST'], endpoint='admin_logout')
@@ -148,17 +162,21 @@ def register_routes(app):
     def account():
         if request.method == 'POST':
             number, name = identity(request.form)
+            department = selected_department(request.form.get('department'), request.form.get('department_other'))
             throttle('profile-password', str(current_user.id))
             with write_transaction():
                 if not check_password_hash(current_user.password_hash, request.form.get('current_password', '')):
                     raise RuleError('현재 비밀번호를 확인해 주세요.', 403)
                 claim_number(current_user.student_number, current_user.id)
                 claim_number(number, current_user.id)
-                current_user.student_number, current_user.name = number, name
+                current_user.student_number, current_user.name, current_user.department = number, name, department
                 event(actor(), 'profile_update', current_user.id)
             flash('회원정보를 수정했습니다. 기존 예약과 이용 이력은 유지됩니다.')
             return redirect(url_for('account'))
-        return render_template('account.html')
+        department_choice, department_other = department_form_value(current_user.department)
+        return render_template('account.html', department_groups=DEPARTMENT_GROUPS,
+                               other_choices=OTHER_CHOICES, department_choice=department_choice,
+                               department_other=department_other)
 
     @app.route('/account/password', methods=['POST'])
     @student_required
@@ -242,6 +260,8 @@ def register_routes(app):
     @student_required
     def make_reservation():
         data = request.get_json(silent=True)
+        if not isinstance(data, dict) or data.get('usage_agreed') is not True:
+            raise RuleError('이용 안내를 확인하고 동의해 주세요.')
         with write_transaction():
             allowed_student(current_user)
             date, start, end, seat = booking_input(data)
@@ -456,6 +476,18 @@ def register_routes(app):
                 event(actor(), 'cancel', reservation.id)
         return redirect(url_for('admin_dashboard'))
 
+    @app.route('/admin/reservations/<int:reservation_id>/clear-ip', methods=['POST'])
+    @admin_required
+    def admin_clear_booking_ip(reservation_id):
+        with write_transaction():
+            reservation = db.get_or_404(Reservation, reservation_id)
+            if reservation.booking_ip:
+                reservation.booking_ip = None
+                event(actor(), 'clear_booking_ip', reservation.id)
+            day = reservation.date
+        flash('접속 IP 주소를 예약 기록에서 삭제했습니다.')
+        return redirect(url_for('admin_dashboard', date=day))
+
     @app.route('/admin/attend/<int:reservation_id>', methods=['POST'])
     @admin_required
     def admin_attend_reservation(reservation_id):
@@ -528,8 +560,10 @@ def register_routes(app):
         values['reservation_open'] = request.form.get('reservation_open')
         values['notice'] = request.form.get('notice', '').strip()
         values['usage_notice'] = request.form.get('usage_notice', '').strip()
+        values['usage_details'] = request.form.get('usage_details', rules()['usage_details']).strip()
         if (values['reservation_open'] not in {'0', '1'} or
-                len(values['notice']) > 255 or len(values['usage_notice']) > 255):
+                len(values['notice']) > 255 or len(values['usage_notice']) > 500 or
+                not values['usage_details'] or len(values['usage_details']) > 3000):
             raise RuleError('설정 값을 확인해 주세요.')
         with write_transaction():
             for key, value in values.items():

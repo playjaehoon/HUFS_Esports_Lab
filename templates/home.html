@@ -1,0 +1,65 @@
+{% extends 'layout.html' %}
+{% block title %}Philips Evnia Esports Lab | 한국외국어대학교{% endblock %}
+{% block body_class %}home-page{% endblock %}
+{% block content %}
+<section class="home-hero" aria-label="실습실 사진">
+    <div class="hero-viewport" data-carousel>
+        <div class="hero-track">
+            <div class="hero-slide"><img src="{{ url_for('static', filename='images/home/slide-2.jpg') }}" alt="Evnia 장비와 좌석이 놓인 실습실 전경" width="1920" height="1080" fetchpriority="high"></div>
+            <div class="hero-slide"><img src="{{ url_for('static', filename='images/home/hero-second.jpg') }}" alt="Philips Evnia Esports Lab의 PC와 좌석 전경" width="4000" height="2252"></div>
+            <div class="hero-slide"><img src="{{ url_for('static', filename='images/home/hero-third.jpg') }}" alt="Philips Evnia Esports Lab 개관 행사 단체 사진" width="3456" height="2304"></div>
+            <div class="hero-slide"><img src="{{ url_for('static', filename='images/home/slide-3.jpg') }}" alt="실습실 좌석에서 게임을 플레이하는 이용자들" width="1920" height="1080"></div>
+            <div class="hero-slide"><img src="{{ url_for('static', filename='images/home/slide-4.jpg') }}" alt="모니터가 놓인 실습실에서 활동하는 이용자들" width="1920" height="1080"></div>
+        </div>
+    </div>
+    <div class="hero-shade" aria-hidden="true"></div>
+    <div class="hero-content">
+        <h1>캠퍼스에서 마주하는<br>외대인을 위한 E스포츠 공간</h1>
+        <div class="hero-actions"><a class="hero-cta" href="{{ url_for('index') }}">좌석 예약하기 <span aria-hidden="true">↗</span></a><a class="hero-text-link" href="#about">실습실 알아보기</a></div>
+    </div>
+    <div class="hero-controls" aria-label="사진 슬라이드 조작">
+        <span class="hero-count"><span data-slide-number>01</span> / 05</span>
+        <button type="button" data-carousel-prev aria-label="이전 사진">←</button>
+        <button type="button" data-carousel-next aria-label="다음 사진">→</button>
+    </div>
+</section>
+
+<section class="home-section home-about" id="about" aria-labelledby="about-title">
+    <div class="home-section-heading"><h2 id="about-title">실습실 소개</h2></div>
+    <div class="about-main"><div class="about-copy"><p><strong>Philips Evnia Esports Lab</strong>은 한국외국어대학교 글로벌캠퍼스 어문관 335호에 조성된 e스포츠 전문 교육·실습 공간입니다. 2026년 3월 5일, 글로벌 디스플레이 기업 MMD와 Culture &amp; Technology 융합대학이 e스포츠 교육 활성화 및 산학협력 강화를 위한 업무협약(MOU)을 체결하며 개관하였습니다.</p><p>Philips 브랜드의 게이밍 모니터를 비롯한 전문 장비를 바탕으로 실제 산업 환경에 가까운 실습 환경을 구축하였으며, 학생들이 e스포츠 산업 전반에 대한 이해와 실무 역량을 함께 함양할 수 있는 교육 공간으로 활용되고 있습니다.</p><p>글로벌스포츠산업학부는 Philips Evnia Esports Lab을 중심으로 e스포츠 교육과 실습, 산업 연계 프로젝트를 지속적으로 확대하며 미래 e스포츠 산업을 이끌 전문 인재 양성에 힘쓰고 있습니다.</p></div></div>
+    <div class="about-facts"><div><span>위치</span><strong>어문관 335호(글로벌스포츠산업학부 실습실)</strong></div><div><span>이용</span><strong>온라인 좌석 사전예약</strong></div><div><span>방문</span><strong>학생증(혹은 모바일 학생증) 지참</strong></div></div>
+</section>
+
+<section class="home-section visit-steps" aria-labelledby="steps-title">
+    <div class="home-section-heading"><h2 id="steps-title">이용 방법</h2></div>
+    <ol class="steps-grid">
+        <li class="step-panel"><span class="step-number">01 / 가입</span><div class="step-illustration" aria-hidden="true"><svg viewBox="0 0 120 88"><circle cx="60" cy="27" r="14"/><path d="M30 72c0-16 13-25 30-25s30 9 30 25"/><path d="M88 18h22M99 7v22"/></svg></div><h3>회원가입</h3><p>학번과 이름을 등록하고 로그인합니다.</p></li>
+        <li class="step-panel"><span class="step-number">02 / 예약</span><div class="step-illustration" aria-hidden="true"><svg viewBox="0 0 120 88"><rect x="23" y="18" width="74" height="58" rx="3"/><path d="M23 34h74M42 10v16M78 10v16M40 49h10M61 49h10M40 62h10"/></svg></div><h3>좌석 예약</h3><p>날짜·시간·좌석을 선택해 예약합니다.</p></li>
+        <li class="step-panel"><span class="step-number">03 / 방문</span><div class="step-illustration" aria-hidden="true"><svg viewBox="0 0 120 88"><rect x="20" y="18" width="80" height="54" rx="3"/><circle cx="45" cy="40" r="9"/><path d="M30 61c2-8 7-12 15-12s13 4 15 12M70 35h18M70 45h18M70 55h13"/></svg></div><h3>학생증 확인</h3><p>예약 시간에 방문해 학생증을 보여주세요.</p></li>
+        <li class="step-panel"><span class="step-number">04 / 이용</span><div class="step-illustration" aria-hidden="true"><svg viewBox="0 0 120 88"><rect x="22" y="16" width="76" height="49" rx="3"/><path d="M60 65v12M42 77h36M36 29h48M36 39h31"/></svg></div><h3>실습실 이용</h3><p>이용 동의사항을 확인하고 체크한 후 실습실을 이용해 주세요.</p></li>
+    </ol>
+</section>
+
+<section class="home-section home-usage" id="usage" aria-labelledby="usage-title">
+    <div class="home-section-heading"><h2 id="usage-title">이용 시 유의사항</h2></div>
+    <div class="usage-points">{% for line in usage_notice.splitlines() if line.strip() %}<p>{{ line }}</p>{% else %}<p>이용 안내를 준비 중입니다.</p>{% endfor %}</div>
+    <details class="usage-details"><summary>자세한 이용 안내</summary><p>{{ usage_details }}</p></details>
+</section>
+
+<section class="home-section home-notices" id="notices" aria-labelledby="notices-title">
+    <div class="home-section-heading"><h2 id="notices-title">공지사항</h2><a class="underlined-link" href="{{ url_for('notice_board') }}">전체 보기 <span aria-hidden="true">↗</span></a></div>
+    <div class="notice-post-list">
+        {% for post in recent_notices %}<a href="{{ url_for('notice_post', post_id=post.id) }}"><span class="notice-post-date">{{ post.created_at|kst_date }}</span><strong>{{ post.title }}</strong><span aria-hidden="true">↗</span></a>
+        {% else %}<p class="board-empty">등록된 공지사항이 없습니다.</p>{% endfor %}
+    </div>
+</section>
+
+<section class="home-section home-gallery" id="gallery" aria-labelledby="gallery-title">
+    <div class="home-section-heading"><h2 id="gallery-title">갤러리</h2><a class="underlined-link" href="{{ url_for('gallery_board') }}">전체 보기 <span aria-hidden="true">↗</span></a></div>
+    <div class="gallery-grid gallery-preview">
+        {% for post in recent_gallery %}
+        <a class="gallery-post" href="{{ url_for('gallery_post', post_id=post.id) }}"><img src="{{ url_for('board_image', post_id=post.id) }}" alt="{{ post.image_alt }}" loading="lazy"><span class="gallery-post-meta">{{ post.created_at|kst_date }}</span><strong>{{ post.title }}</strong></a>
+        {% else %}<p class="board-empty">아직 등록된 사진이 없습니다.</p>{% endfor %}
+    </div>
+</section>
+{% endblock %}

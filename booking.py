@@ -12,7 +12,8 @@ KOREA = ZoneInfo('Asia/Seoul')
 SEATS = tuple(range(1, 28))  # Existing drawing; confirm onsite before deployment.
 DEFAULTS = {'reservation_open': '1', 'max_hours': '3', 'open_hour': '9', 'close_hour': '17',
             'advance_days': '7', 'notice': '이용 당일 학생증을 준비해 주세요.',
-            'usage_notice': '물 이외 음식물 반입 금지\n이용 당일 학생증 지참 · 이용 후 자리 정리'}
+            'usage_notice': '물 이외 음식물 반입 금지\n이용 당일 학생증 지참 · 이용 후 자리 정리',
+            'usage_details': '예약한 시간에 방문해 학생증(모바일 학생증 포함)을 보여주세요.\n물 이외 음식물은 반입하지 마세요.\n이용 후 좌석을 정리하고 운영진의 퇴실 확인을 받으세요.'}
 
 
 class RuleError(ValueError):

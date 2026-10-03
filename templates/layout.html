@@ -5,40 +5,86 @@
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% block title %}Philips Evnia Esports Lab{% endblock %}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <meta name="description" content="캠퍼스에서 마주하는 외대인을 위한 E스포츠 공간. Philips Evnia Esports Lab의 사진과 좌석 정보를 확인하고 예약하세요.">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Philips Evnia Esports Lab">
+    <meta property="og:title" content="Philips Evnia Esports Lab | 외대인을 위한 E스포츠 공간">
+    <meta property="og:description" content="캠퍼스에서 마주하는 외대인을 위한 E스포츠 공간. 사진과 좌석 정보를 확인하고 예약하세요.">
+    <meta property="og:url" content="{{ url_for('home', _external=True) }}">
+    <meta property="og:image" content="{{ url_for('static', filename='images/home/slide-2.jpg', _external=True) }}">
+    <meta property="og:image:type" content="image/jpeg">
+    <meta property="og:image:width" content="1920">
+    <meta property="og:image:height" content="1080">
+    <meta property="og:image:alt" content="Philips Evnia Esports Lab 실습실 전경">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:description" content="캠퍼스에서 마주하는 외대인을 위한 E스포츠 공간.">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261004-admin-links') }}">
+    <script src="{{ url_for('static', filename='js/site.js', v='20261004-departments') }}" defer></script>
 </head>
-<body>
-<nav class="navbar" aria-label="주 메뉴">
-    <a class="brand" href="{{ url_for('index') }}" aria-label="Philips Evnia Esports Lab">
-        <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Philips Evnia Esports Lab">
-    </a>
-    <div class="nav-links">
-    {% if current_user.is_authenticated %}
-        {% if current_user.get_id().startswith('admin_') %}
-        <a href="{{ url_for('admin_dashboard') }}">오늘 예약</a>
-        <a href="{{ url_for('admin_dashboard') }}#operation-settings">공지·설정</a>
-        <a href="{{ url_for('admin_students') }}">학생 관리</a>
-        <a href="{{ url_for('admin_audit') }}">처리 기록</a>
-        {% else %}
-        <a href="{{ url_for('index') }}">예약하기</a>
-        <a href="{{ url_for('my_reservations') }}">내 예약</a>
-        <a href="{{ url_for('account') }}">내 정보</a>
-        {% endif %}
-        <form method="post" action="{{ url_for('logout') }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button class="nav-logout" type="submit">로그아웃</button>
-        </form>
-    {% else %}
-        <a href="{{ url_for('student_login') }}">로그인</a>
-        <a href="{{ url_for('student_register') }}">회원가입</a>
-        <a href="{{ url_for('admin_login') }}">관리자</a>
-    {% endif %}
+<body class="{% block body_class %}{% endblock %}">
+<header class="site-header">
+    <div class="header-inner">
+        <a class="brand" href="{{ url_for('home') }}" aria-label="Philips Evnia Esports Lab 홈">
+            <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Philips Evnia Esports Lab">
+        </a>
+        <div class="header-right">
+            <div class="header-shortcuts">
+            {% if current_user.is_authenticated %}
+                {% if current_user.get_id().startswith('admin_') %}
+                <a href="{{ url_for('admin_dashboard') }}">관리자 화면</a>
+                {% else %}
+                <a href="{{ url_for('my_reservations') }}">내 예약</a>
+                <a class="header-reserve" href="{{ url_for('index') }}">예약하기</a>
+                {% endif %}
+            {% else %}
+                <a href="{{ url_for('student_login') }}">로그인</a>
+                <a href="{{ url_for('student_register') }}">회원가입</a>
+            {% endif %}
+            </div>
+            <details class="site-menu">
+                <summary aria-label="사이트 메뉴"><span class="menu-icon" aria-hidden="true"><i></i><i></i><i></i></span></summary>
+                <nav class="site-menu-panel" aria-label="사이트맵">
+                    <span class="menu-label">둘러보기</span>
+                    <a href="{{ url_for('home') }}#about">실습실 소개</a>
+                    <a href="{{ url_for('index') }}">예약하기</a>
+                    <a href="{{ url_for('notice_board') }}">공지사항</a>
+                    <a href="{{ url_for('gallery_board') }}">갤러리</a>
+                    <span class="menu-label menu-account-label">계정</span>
+                    {% if current_user.is_authenticated %}
+                        {% if current_user.get_id().startswith('admin_') %}
+                        <a href="{{ url_for('admin_dashboard') }}">오늘 예약</a>
+                        <a href="{{ url_for('admin_dashboard') }}#operation-settings">공지·설정</a>
+                        <a href="{{ url_for('admin_posts') }}">게시글 관리</a>
+                        <a href="{{ url_for('admin_students') }}">학생 관리</a>
+                        <a href="{{ url_for('admin_audit') }}">처리 기록</a>
+                        {% else %}
+                        <a href="{{ url_for('my_reservations') }}">내 예약</a>
+                        <a href="{{ url_for('account') }}">내 정보</a>
+                        {% endif %}
+                        <form method="post" action="{{ url_for('logout') }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button class="menu-logout" type="submit">로그아웃</button>
+                        </form>
+                    {% else %}
+                        <a href="{{ url_for('student_login') }}">로그인</a>
+                        <a href="{{ url_for('student_register') }}">회원가입</a>
+                        <a href="{{ url_for('admin_login') }}">관리자 로그인</a>
+                    {% endif %}
+                </nav>
+            </details>
+        </div>
     </div>
-</nav>
+</header>
 <main class="container">
     {% for message in get_flashed_messages() %}<p class="notice-banner" role="status">{{ message }}</p>{% endfor %}
     {% block content %}{% endblock %}
 </main>
-<footer class="site-footer">Esports Lab 예약·이용 안내</footer>
+<footer class="site-footer">
+    <div class="footer-inner">
+        <div class="footer-identity"><strong>Philips Evnia Esports Lab</strong><p>한국외국어대학교 글로벌캠퍼스의 e스포츠 실습 공간</p></div>
+        <div class="footer-contact"><p><span>위치</span> 경기도 용인시 처인구 모현읍 외대로 81<br>한국외국어대학교 글로벌캠퍼스 어문관 335호</p><p><span>문의</span> <a href="mailto:gsi@hufs.ac.kr">gsi@hufs.ac.kr</a></p></div>
+        <p class="footer-copy">© {{ current_year }} Philips Evnia Esports Lab</p>
+    </div>
+</footer>
 </body>
 </html>

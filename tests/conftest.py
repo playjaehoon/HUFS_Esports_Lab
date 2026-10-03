@@ -21,6 +21,7 @@ def app(tmp_path, password_hash):
     app = create_app({'TESTING': True, 'SECRET_KEY': 'isolated-test-key-with-more-than-32-characters',
                       'SQLALCHEMY_DATABASE_URI': f'sqlite:///{(tmp_path / "test.db").as_posix()}',
                       'SESSION_COOKIE_SECURE': False, 'AUTH_RATE_LIMIT_ENABLED': False,
+                      'BOARD_UPLOAD_DIR': str(tmp_path / 'board_uploads'),
                       'NOW_PROVIDER': lambda: datetime(2026, 9, 14, 8, tzinfo=ZoneInfo('Asia/Seoul'))})
     with app.app_context():
         db.create_all()
@@ -60,7 +61,8 @@ def login(app, student=1, admin=False):
 
 
 def booking(**overrides):
-    return {'date': '2026-09-15', 'start_time': '10:00', 'end_time': '12:00', 'seat_number': 1, **overrides}
+    return {'date': '2026-09-15', 'start_time': '10:00', 'end_time': '12:00',
+            'seat_number': 1, 'usage_agreed': True, **overrides}
 
 
 def reserve(client, **overrides):
