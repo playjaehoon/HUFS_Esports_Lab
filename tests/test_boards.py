@@ -4,7 +4,7 @@ from pathlib import Path
 from PIL import Image
 
 from conftest import csrf, login, post
-from models import BoardPost, db
+from models import BoardAttachment, BoardPost, db
 
 
 def test_public_boards_show_recent_posts_and_admin_can_manage_notices(app):
@@ -61,11 +61,16 @@ def test_gallery_upload_is_converted_and_private_metadata_removed(app):
         'csrf_token': csrf(admin), 'category': 'gallery', 'title': '새 사진',
         'body': '사진 설명입니다.', 'image_alt': '실습실 좌석 사진',
         'image': (BytesIO(original), 'photo.jpg'),
+        'attachments_alt': '좌석과 장비를 보여 주는 사진',
+        'attachments': [(BytesIO(original), f'extra-{n}.jpg') for n in range(2)],
     }, content_type='multipart/form-data')
     assert response.status_code == 302
     with app.app_context():
         entry = db.session.scalar(db.select(BoardPost).where(BoardPost.title == '새 사진'))
         identifier, filename = entry.id, entry.image_path
+        assert len(entry.attachments) == 2
+        extra_paths = [Path(app.config['BOARD_UPLOAD_DIR']) / item.image_path.removeprefix('uploads/')
+                       for item in entry.attachments]
         image_file = Path(app.config['BOARD_UPLOAD_DIR']) / filename.removeprefix('uploads/')
         assert image_file.is_file()
         with Image.open(image_file) as saved:
@@ -73,9 +78,12 @@ def test_gallery_upload_is_converted_and_private_metadata_removed(app):
             assert saved.getexif().get(315) is None
     assert visitor.get(f'/board/image/{identifier}').status_code == 200
     assert '새 사진' in visitor.get('/gallery').get_data(as_text=True)
-    assert visitor.get(f'/gallery/{identifier}').status_code == 200
+    detail = visitor.get(f'/gallery/{identifier}')
+    assert detail.status_code == 200
+    assert detail.get_data(as_text=True).count('/board/image/') == 3
     assert post(admin, f'/admin/posts/{identifier}/delete', {'confirm': '1'}).status_code == 302
     assert not image_file.exists()
+    assert all(not path.exists() for path in extra_paths)
     assert visitor.get(f'/board/image/{identifier}').status_code == 404
 
 
@@ -91,3 +99,53 @@ def test_gallery_rejects_non_image(app):
         assert db.session.scalar(db.select(db.func.count()).select_from(BoardPost)) == 0
     upload_dir = Path(app.config['BOARD_UPLOAD_DIR'])
     assert not upload_dir.exists() or not list(upload_dir.iterdir())
+
+
+def test_notice_can_have_more_than_ten_images_and_safe_html(app):
+    admin = login(app, admin=True)
+    visitor = app.test_client()
+    sample = jpeg_with_metadata()
+    response = admin.post('/admin/posts/new', data={
+        'csrf_token': csrf(admin), 'category': 'notice', 'title': '사진 공지',
+        'body_format': 'html', 'body': '<h2>안내</h2><script>alert(1)</script><a href="javascript:alert(1)">위험 링크</a>',
+        'attachments_alt': '실습실 행사 현장',
+        'attachments': [(BytesIO(sample), f'photo-{n}.jpg') for n in range(5)],
+    }, content_type='multipart/form-data')
+    assert response.status_code == 302
+    with app.app_context():
+        entry = db.session.scalar(db.select(BoardPost).where(BoardPost.title == '사진 공지'))
+        identifier = entry.id
+        assert entry.body_format == 'html'
+        assert len(entry.attachments) == 5
+    for batch in range(2):
+        response = admin.post(f'/admin/posts/{identifier}/edit', data={
+            'csrf_token': csrf(admin), 'title': '사진 공지', 'body': '<h2>안내</h2>',
+            'body_format': 'html', 'attachments_alt': '추가 행사 사진',
+            'attachments': [(BytesIO(sample), f'extra-{batch}-{n}.jpg') for n in range(4 if batch else 5)],
+        }, content_type='multipart/form-data')
+        assert response.status_code == 302
+    with app.app_context():
+        attachments = db.session.scalars(db.select(BoardAttachment).where(BoardAttachment.post_id == identifier)).all()
+        assert len(attachments) == 14
+        attachment_id = attachments[-1].id
+    detail = visitor.get(f'/notices/{identifier}').get_data(as_text=True)
+    assert '<h2>안내</h2>' in detail
+    assert '<script>' not in detail and 'javascript:' not in detail
+    assert detail.count('/board/image/') == 14
+    assert visitor.get(f'/board/image/{identifier}/{attachment_id}').status_code == 200
+    assert post(admin, f'/admin/posts/{identifier}/images/{attachment_id}/delete').status_code == 302
+    assert visitor.get(f'/board/image/{identifier}/{attachment_id}').status_code == 404
+
+
+def test_gallery_image_upload_rejects_too_many_in_one_request(app):
+    admin = login(app, admin=True)
+    sample = jpeg_with_metadata()
+    response = admin.post('/admin/posts/new', data={
+        'csrf_token': csrf(admin), 'category': 'gallery', 'title': '많은 사진', 'body': '설명',
+        'image_alt': '대표 이미지', 'image': (BytesIO(sample), 'cover.jpg'),
+        'attachments_alt': '추가 이미지',
+        'attachments': [(BytesIO(sample), f'photo-{n}.jpg') for n in range(6)],
+    }, content_type='multipart/form-data')
+    assert response.status_code == 400
+    with app.app_context():
+        assert db.session.scalar(db.select(db.func.count()).select_from(BoardPost)) == 0

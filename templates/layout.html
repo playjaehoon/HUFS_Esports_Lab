@@ -18,7 +18,7 @@
     <meta property="og:image:alt" content="Philips Evnia Esports Lab 실습실 전경">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:description" content="캠퍼스에서 마주하는 외대인을 위한 E스포츠 공간.">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261004-admin-links') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261004-process-stepper') }}">
     <script src="{{ url_for('static', filename='js/site.js', v='20261004-departments') }}" defer></script>
 </head>
 <body class="{% block body_class %}{% endblock %}">
@@ -56,6 +56,7 @@
                         <a href="{{ url_for('admin_dashboard') }}#operation-settings">공지·설정</a>
                         <a href="{{ url_for('admin_posts') }}">게시글 관리</a>
                         <a href="{{ url_for('admin_students') }}">학생 관리</a>
+                        <a href="{{ url_for('admin_stats') }}">이용 통계</a>
                         <a href="{{ url_for('admin_audit') }}">처리 기록</a>
                         {% else %}
                         <a href="{{ url_for('my_reservations') }}">내 예약</a>

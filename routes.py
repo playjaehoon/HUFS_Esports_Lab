@@ -71,6 +71,12 @@ def register_routes(app):
         return render_template('home.html', recent_gallery=recent_gallery, recent_notices=recent_notices,
                                usage_notice=policy['usage_notice'], usage_details=policy['usage_details'])
 
+    @app.route('/usage')
+    def usage_guide():
+        policy = rules()
+        return render_template('usage_guide.html', usage_notice=policy['usage_notice'],
+                               usage_details=policy['usage_details'])
+
     @app.route('/reserve')
     @login_required
     def index():
@@ -312,11 +318,22 @@ def register_routes(app):
     @admin_required
     def admin_students():
         term = request.args.get('q', '').strip()[:50]
-        query = db.select(Student).order_by(Student.student_number)
+        sort = request.args.get('sort', 'number')
+        direction = request.args.get('direction', 'asc')
+        if sort not in {'number', 'name', 'department'}:
+            sort = 'number'
+        if direction not in {'asc', 'desc'}:
+            direction = 'asc'
+        column = {'number': Student.student_number, 'name': Student.name,
+                  'department': Student.department}[sort]
+        query = db.select(Student).order_by(column.desc() if direction == 'desc' else column.asc(), Student.id)
         if term:
-            query = query.where(db.or_(Student.student_number.contains(term, autoescape=True), Student.name.contains(term, autoescape=True)))
+            query = query.where(db.or_(Student.student_number.contains(term, autoescape=True),
+                                       Student.name.contains(term, autoescape=True),
+                                       Student.department.contains(term, autoescape=True)))
         students = db.paginate(query, page=max(1, request.args.get('page', 1, type=int)), per_page=30, error_out=False)
-        return render_template('admin_students.html', students=students, term=term, now=utcnow())
+        return render_template('admin_students.html', students=students, term=term, now=utcnow(),
+                               sort=sort, direction=direction)
 
     @app.route('/admin/students/approve/<int:student_id>', methods=['POST'])
     @admin_required

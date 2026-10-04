@@ -138,16 +138,27 @@ class BoardPost(db.Model):
     category = db.Column(db.String(10), nullable=False, index=True)
     title = db.Column(db.String(120), nullable=False)
     body = db.Column(db.Text, nullable=False)
+    body_format = db.Column(db.String(10), nullable=False, default='text', server_default='text')
     image_path = db.Column(db.String(200))
     image_alt = db.Column(db.String(160))
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow, index=True)
     updated_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+    attachments = db.relationship('BoardAttachment', back_populates='post',
+                                  cascade='all, delete-orphan', order_by='BoardAttachment.id')
     __table_args__ = (
         db.CheckConstraint("category IN ('notice','gallery')", name='board_post_category'),
         db.CheckConstraint("(category = 'notice' AND image_path IS NULL) OR "
                            "(category = 'gallery' AND image_path IS NOT NULL)",
                            name='board_post_gallery_image'),
     )
+
+
+class BoardAttachment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    post_id = db.Column(db.Integer, db.ForeignKey('board_post.id', ondelete='CASCADE'), nullable=False, index=True)
+    image_path = db.Column(db.String(200), nullable=False)
+    image_alt = db.Column(db.String(160), nullable=False)
+    post = db.relationship(BoardPost, back_populates='attachments')
 
 
 class AuditEvent(db.Model):
