@@ -6,7 +6,8 @@
     <p class="board-breadcrumb"><a href="{{ url_for('home') }}">홈</a> / <a href="{{ url_for('gallery_board' if category == 'gallery' else 'notice_board') }}">{{ '갤러리' if category == 'gallery' else '공지사항' }}</a></p>
     <header><span>{{ 'GALLERY' if category == 'gallery' else 'NOTICE' }}</span><h1>{{ post.title }}</h1><time datetime="{{ post.created_at.isoformat() }}Z">{{ post.created_at|kst_date }}</time></header>
     {% if category == 'gallery' %}<img class="board-detail-image" src="{{ url_for('board_image', post_id=post.id) }}" alt="{{ post.image_alt }}">{% endif %}
-    <div class="board-body">{{ post.body }}</div>
+    <div class="board-body {{ 'board-body-html' if post.body_format == 'html' else '' }}">{% if post.body_format == 'html' %}{{ post.body|safe_board_html }}{% else %}{{ post.body }}{% endif %}</div>
+    {% if post.attachments %}<div class="board-detail-attachments">{% for image in post.attachments %}<figure><img src="{{ url_for('board_attachment_image', post_id=post.id, attachment_id=image.id) }}" alt="{{ image.image_alt }}" loading="lazy"><figcaption>{{ image.image_alt }}</figcaption></figure>{% endfor %}</div>{% endif %}
     <a class="board-back" href="{{ url_for('gallery_board' if category == 'gallery' else 'notice_board') }}">← 목록으로</a>
 </article>
 {% endblock %}

@@ -1,11 +1,13 @@
-{% extends 'layout.html' %}{% from '_forms.html' import csrf, pagination %}
-{% block content %}<h1 class="page-title">학생 관리</h1>
-<p class="section-intro">회원가입 승인은 필요하지 않습니다. 비밀번호는 조회할 수 없습니다.</p>
-<form class="filter-row" method="get"><label>이름·학번 <input class="form-control" name="q" value="{{ term }}" maxlength="50"></label><button class="btn btn-primary">검색</button></form>
-<section class="card">{% for s in students.items %}
-<article class="admin-reservation"><div><h2>{{ s.name }}</h2><p>{{ s.student_number }}</p>
-<p>{% if s.archived %}비활성화{% elif s.blocked_until and s.blocked_until > now %}{% if s.blocked_until.year > now.year + 50 %}영구 이용 제한{% else %}이용 제한 (UTC {{ s.blocked_until.strftime('%Y-%m-%d %H:%M') }}까지){% endif %}{% else %}정상{% endif %}</p></div>
-<div>{% if not s.archived %}<form class="filter-row" method="post" action="{{ url_for('admin_block_student',student_id=s.id) }}">{{ csrf() }}
-<label>이용 제한<select class="form-control" name="duration"><option value="1week">1주</option><option value="2weeks">2주</option><option value="permanent">영구</option><option value="unblock">해제</option></select></label><button class="btn">적용</button></form>
-<details><summary>계정 비활성화</summary><form method="post" action="{{ url_for('admin_delete_student',student_id=s.id) }}">{{ csrf() }}<label class="check-label"><input type="checkbox" required> 로그인과 미입실 예정 예약을 해제합니다. 이력은 보존합니다.</label><button class="btn btn-danger">비활성화</button></form></details>{% endif %}</div></article>
-{% else %}<p>검색 결과가 없습니다.</p>{% endfor %}</section>{{ pagination(students,'admin_students',term) }}{% endblock %}
+{% extends 'layout.html' %}{% from '_forms.html' import csrf %}
+{% block content %}
+<div class="admin-list-heading"><div><h1 class="page-title">학생 관리</h1><p class="section-intro">학번·이름·학과로 검색하거나 열 제목을 눌러 정렬할 수 있습니다. 비밀번호는 조회할 수 없습니다.</p></div><a class="btn btn-secondary" href="{{ url_for('admin_stats') }}">통계 · Excel</a></div>
+<form class="filter-row" method="get"><label>학생 검색 <input class="form-control" name="q" value="{{ term }}" maxlength="50" placeholder="학번, 이름 또는 학과"></label><input type="hidden" name="sort" value="{{ sort }}"><input type="hidden" name="direction" value="{{ direction }}"><button class="btn btn-primary">검색</button></form>
+{% macro sort_link(key, label) %}<a href="{{ url_for('admin_students', q=term, sort=key, direction='desc' if sort == key and direction == 'asc' else 'asc') }}" {% if sort == key %}aria-label="{{ label }} {{ '오름차순' if direction == 'asc' else '내림차순' }} 정렬됨"{% endif %}>{{ label }}{% if sort == key %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a>{% endmacro %}
+<div class="student-table-head"><span>{{ sort_link('number', '학번') }}</span><span>{{ sort_link('name', '이름') }}</span><span>{{ sort_link('department', '학과') }}</span><span>상태</span><span>관리</span></div>
+<section class="student-table">{% for s in students.items %}
+<article class="student-row"><span data-label="학번">{{ s.student_number }}</span><strong data-label="이름">{{ s.name }}</strong><span data-label="학과">{{ s.department or '미입력' }}</span>
+<span data-label="상태">{% if s.archived %}비활성화{% elif s.blocked_until and s.blocked_until > now %}{% if s.blocked_until.year > now.year + 50 %}영구 이용 제한{% else %}이용 제한{% endif %}{% else %}정상{% endif %}</span>
+<div class="student-actions">{% if not s.archived %}<details><summary>관리</summary><form class="filter-row" method="post" action="{{ url_for('admin_block_student',student_id=s.id) }}">{{ csrf() }}<label>이용 제한<select class="form-control" name="duration"><option value="1week">1주</option><option value="2weeks">2주</option><option value="permanent">영구</option><option value="unblock">해제</option></select></label><button class="btn">적용</button></form><form method="post" action="{{ url_for('admin_delete_student',student_id=s.id) }}">{{ csrf() }}<label class="check-label"><input type="checkbox" required> 비활성화하고 미입실 예정 예약을 해제합니다.</label><button class="btn btn-danger">비활성화</button></form></details>{% endif %}</div></article>
+{% else %}<p class="board-empty">검색 결과가 없습니다.</p>{% endfor %}</section>
+<nav class="pagination" aria-label="학생 페이지">{% if students.has_prev %}<a href="{{ url_for('admin_students', page=students.prev_num, q=term, sort=sort, direction=direction) }}">이전</a>{% endif %}<span>{{ students.page }} / {{ students.pages or 1 }}</span>{% if students.has_next %}<a href="{{ url_for('admin_students', page=students.next_num, q=term, sort=sort, direction=direction) }}">다음</a>{% endif %}</nav>
+{% endblock %}

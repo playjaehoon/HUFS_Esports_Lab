@@ -14,7 +14,7 @@
     </div>
     <div class="hero-shade" aria-hidden="true"></div>
     <div class="hero-content">
-        <h1>캠퍼스에서 마주하는<br>외대인을 위한 E스포츠 공간</h1>
+        <h1>캠퍼스에서 마주하는<br>외대인을 위한<br><span class="hero-no-break">E스포츠 공간</span></h1>
         <div class="hero-actions"><a class="hero-cta" href="{{ url_for('index') }}">좌석 예약하기 <span aria-hidden="true">↗</span></a><a class="hero-text-link" href="#about">실습실 알아보기</a></div>
     </div>
     <div class="hero-controls" aria-label="사진 슬라이드 조작">
@@ -33,17 +33,17 @@
 <section class="home-section visit-steps" aria-labelledby="steps-title">
     <div class="home-section-heading"><h2 id="steps-title">이용 방법</h2></div>
     <ol class="steps-grid">
-        <li class="step-panel"><span class="step-number">01 / 가입</span><div class="step-illustration" aria-hidden="true"><svg viewBox="0 0 120 88"><circle cx="60" cy="27" r="14"/><path d="M30 72c0-16 13-25 30-25s30 9 30 25"/><path d="M88 18h22M99 7v22"/></svg></div><h3>회원가입</h3><p>학번과 이름을 등록하고 로그인합니다.</p></li>
-        <li class="step-panel"><span class="step-number">02 / 예약</span><div class="step-illustration" aria-hidden="true"><svg viewBox="0 0 120 88"><rect x="23" y="18" width="74" height="58" rx="3"/><path d="M23 34h74M42 10v16M78 10v16M40 49h10M61 49h10M40 62h10"/></svg></div><h3>좌석 예약</h3><p>날짜·시간·좌석을 선택해 예약합니다.</p></li>
-        <li class="step-panel"><span class="step-number">03 / 방문</span><div class="step-illustration" aria-hidden="true"><svg viewBox="0 0 120 88"><rect x="20" y="18" width="80" height="54" rx="3"/><circle cx="45" cy="40" r="9"/><path d="M30 61c2-8 7-12 15-12s13 4 15 12M70 35h18M70 45h18M70 55h13"/></svg></div><h3>학생증 확인</h3><p>예약 시간에 방문해 학생증을 보여주세요.</p></li>
-        <li class="step-panel"><span class="step-number">04 / 이용</span><div class="step-illustration" aria-hidden="true"><svg viewBox="0 0 120 88"><rect x="22" y="16" width="76" height="49" rx="3"/><path d="M60 65v12M42 77h36M36 29h48M36 39h31"/></svg></div><h3>실습실 이용</h3><p>이용 동의사항을 확인하고 체크한 후 실습실을 이용해 주세요.</p></li>
+        <li class="step-panel"><span class="step-number" aria-label="1단계">01</span><div class="step-illustration" aria-hidden="true"><svg viewBox="0 0 120 88"><circle cx="60" cy="27" r="14"/><path d="M30 72c0-16 13-25 30-25s30 9 30 25"/><path d="M88 18h22M99 7v22"/></svg></div><h3>회원가입</h3><p>학번과 이름을 등록하고 로그인합니다.</p></li>
+        <li class="step-panel"><span class="step-number" aria-label="2단계">02</span><div class="step-illustration" aria-hidden="true"><svg viewBox="0 0 120 88"><rect x="23" y="18" width="74" height="58" rx="3"/><path d="M23 34h74M42 10v16M78 10v16M40 49h10M61 49h10M40 62h10"/></svg></div><h3>좌석 예약</h3><p>날짜·시간·좌석을 선택해 예약합니다.</p></li>
+        <li class="step-panel"><span class="step-number" aria-label="3단계">03</span><div class="step-illustration" aria-hidden="true"><svg viewBox="0 0 120 88"><rect x="20" y="18" width="80" height="54" rx="3"/><circle cx="45" cy="40" r="9"/><path d="M30 61c2-8 7-12 15-12s13 4 15 12M70 35h18M70 45h18M70 55h13"/></svg></div><h3>학생증 확인</h3><p>예약 시간에 방문해 학생증을 보여주세요.</p></li>
+        <li class="step-panel"><span class="step-number" aria-label="4단계">04</span><div class="step-illustration" aria-hidden="true"><svg viewBox="0 0 120 88"><rect x="22" y="16" width="76" height="49" rx="3"/><path d="M60 65v12M42 77h36M36 29h48M36 39h31"/></svg></div><h3>실습실 이용</h3><p>이용 동의사항을 확인하고 체크한 후 실습실을 이용해 주세요.</p></li>
     </ol>
 </section>
 
 <section class="home-section home-usage" id="usage" aria-labelledby="usage-title">
     <div class="home-section-heading"><h2 id="usage-title">이용 시 유의사항</h2></div>
     <div class="usage-points">{% for line in usage_notice.splitlines() if line.strip() %}<p>{{ line }}</p>{% else %}<p>이용 안내를 준비 중입니다.</p>{% endfor %}</div>
-    <details class="usage-details"><summary>자세한 이용 안내</summary><p>{{ usage_details }}</p></details>
+    <a class="underlined-link" href="{{ url_for('usage_guide') }}">자세한 이용 안내 보기 <span aria-hidden="true">↗</span></a>
 </section>
 
 <section class="home-section home-notices" id="notices" aria-labelledby="notices-title">

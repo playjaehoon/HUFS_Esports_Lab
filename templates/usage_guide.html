@@ -1,0 +1,8 @@
+{% extends 'layout.html' %}
+{% block title %}자세한 이용 안내 | Philips Evnia Esports Lab{% endblock %}
+{% block content %}
+<article class="board-shell usage-guide"><p class="board-breadcrumb"><a href="{{ url_for('home') }}#usage">홈 · 이용 시 유의사항</a></p><header class="board-heading"><h1>자세한 이용 안내</h1><p>실습실 이용 전에 내용을 확인해 주세요.</p></header>
+<section><h2>주요 유의사항</h2><div class="usage-guide-text">{{ usage_notice }}</div></section>
+<section><h2>상세 이용 안내</h2><div class="usage-guide-text">{{ usage_details }}</div></section>
+<a class="board-back" href="{{ url_for('home') }}#usage">← 메인 페이지로</a></article>
+{% endblock %}

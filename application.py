@@ -59,7 +59,7 @@ def create_app(test_config=None):
         # CSRFProtect parses request.form before the view function, so enlarge
         # the limit before its hook only for staff post forms.
         if request.endpoint in {'admin_post_new', 'admin_post_edit'}:
-            request.max_content_length = 6 * 1024 * 1024
+            request.max_content_length = 32 * 1024 * 1024
 
     CSRFProtect(app)
     login = LoginManager(app)
@@ -88,7 +88,8 @@ def create_app(test_config=None):
             if (current_user.must_change_password and not session.get('password_change_skipped') and
                     request.endpoint not in {
                     'home', 'index', 'gallery_board', 'gallery_post', 'notice_board', 'notice_post',
-                    'board_image', 'account', 'change_password', 'skip_password_change', 'logout', 'static'}):
+                    'board_image', 'board_attachment_image', 'usage_guide', 'account',
+                    'change_password', 'skip_password_change', 'logout', 'static'}):
                 if request.path.startswith('/api/'):
                     raise RuleError('내 정보에서 비밀번호를 먼저 변경해 주세요.', 403)
                 return redirect(url_for('account'))
@@ -141,8 +142,10 @@ def create_app(test_config=None):
 
     from routes import register_routes
     from board_routes import register_board_routes
+    from admin_stats import register_stats_routes
     from commands import register_commands
     register_routes(app)
     register_board_routes(app)
+    register_stats_routes(app)
     register_commands(app)
     return app
