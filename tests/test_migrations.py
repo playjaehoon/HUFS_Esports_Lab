@@ -130,7 +130,7 @@ def test_import_preserves_source_and_converts_security_and_relations(
     assert rows(output, 'SELECT value FROM setting WHERE key="max_hours"') == [('2',)]
     assert rows(output, 'SELECT value FROM setting WHERE key="open_hour"') == [('9',)]
     assert rows(output, 'SELECT action FROM audit_event') == [('legacy_import',)]
-    assert rows(output, 'SELECT version_num FROM alembic_version') == [('0008',)]
+    assert rows(output, 'SELECT version_num FROM alembic_version') == [('0010',)]
     assert rows(output, "SELECT title, body FROM board_post WHERE category='notice'") == [
         ('실습실 이용 안내', 'Synthetic notice')]
     assert rows(output, "SELECT count(*) FROM board_post WHERE category='gallery'") == [(4,)]
@@ -190,7 +190,7 @@ def test_empty_version_table_from_older_failed_upgrade_can_be_imported(legacy, t
     with migration_app(tmp_path / 'cli.db') as app, app.app_context():
         import_legacy(legacy, output, 'UTC')
     assert legacy.read_bytes() == before
-    assert rows(output, 'SELECT version_num FROM alembic_version') == [('0008',)]
+    assert rows(output, 'SELECT version_num FROM alembic_version') == [('0010',)]
 
 
 def test_fresh_upgrade_is_versioned_and_safe_to_repeat(tmp_path):
@@ -198,10 +198,41 @@ def test_fresh_upgrade_is_versioned_and_safe_to_repeat(tmp_path):
     with migration_app(database) as app:
         result = upgrade(app)
         assert result.exit_code == 0, result.output
-        assert rows(database, 'SELECT version_num FROM alembic_version') == [('0008',)]
+        assert rows(database, 'SELECT version_num FROM alembic_version') == [('0010',)]
         result = upgrade(app)
         assert result.exit_code == 0, result.output
-    assert rows(database, 'SELECT version_num FROM alembic_version') == [('0008',)]
+    assert rows(database, 'SELECT version_num FROM alembic_version') == [('0010',)]
+
+
+def test_revision_0010_preserves_current_popup_and_existing_posts(tmp_path):
+    database = tmp_path / 'popup-history.db'
+    with migration_app(database) as app:
+        assert upgrade(app, '0009').exit_code == 0
+        change(database, "INSERT INTO board_post (id, category, title, body, body_format, created_at, updated_at) VALUES (7, 'notice', '기존 공지', '본문', 'text', '2026-10-01 00:00:00', '2026-10-01 00:00:00')")
+        change(database, 'INSERT INTO setting (key, value) VALUES (?, ?)',
+               ('home_popup', '{"enabled":true,"mode":"notice","notice_id":7,"title":"","body":"","image_path":null,"image_alt":"","version":"old-popup"}'))
+        result = upgrade(app)
+        assert result.exit_code == 0, result.output
+    assert rows(database, 'SELECT version_num FROM alembic_version') == [('0010',)]
+    assert rows(database, 'SELECT id, is_hidden FROM board_post WHERE id=7') == [(7, 0)]
+    assert rows(database, 'SELECT notice_id, is_active, version FROM home_popup') == [(7, 1, 'old-popup')]
+    assert rows(database, 'PRAGMA integrity_check') == [('ok',)]
+
+
+def test_revision_0009_backfills_only_current_verified_identity(tmp_path):
+    database = tmp_path / 'identity-backfill.db'
+    with migration_app(database) as app:
+        assert upgrade(app, '0008').exit_code == 0
+        change(database, "INSERT INTO admin (id, username, password_hash, session_version) VALUES (1, 'staff', 'hash', 1)")
+        change(database, "INSERT INTO student (id, student_number, name, department, password_hash, archived, must_change_password, session_version) VALUES (1, '202600001', 'Current', '글로벌스포츠산업학부', 'hash', 0, 0, 1)")
+        change(database, "INSERT INTO student (id, student_number, name, department, password_hash, archived, must_change_password, session_version) VALUES (2, '202600002', 'Changed', '철학과', 'hash', 0, 0, 1)")
+        change(database, "INSERT INTO reservation (id, student_pk, student_id, student_name, date, start_minute, end_minute, seat_number, status, is_attended, created_at, checked_in_at, checked_in_by) VALUES (1, 1, '202600001', 'Current', '2026-09-14', 600, 660, 1, 'completed', 1, '2026-09-14 00:00:00', '2026-09-14 01:01:00', 1)")
+        change(database, "INSERT INTO reservation (id, student_pk, student_id, student_name, date, start_minute, end_minute, seat_number, status, is_attended, created_at, checked_in_at, checked_in_by) VALUES (2, 2, '202600002', 'Old name', '2026-09-14', 600, 660, 2, 'completed', 1, '2026-09-14 00:00:00', '2026-09-14 01:01:00', 1)")
+        result = upgrade(app)
+        assert result.exit_code == 0, result.output
+    assert rows(database, 'SELECT identity_verified_at, identity_verified_by FROM student ORDER BY id') == [
+        ('2026-09-14 01:01:00', 1), (None, None)]
+    assert rows(database, 'PRAGMA foreign_key_check') == []
     assert rows(database, 'PRAGMA integrity_check') == [('ok',)]
 
 

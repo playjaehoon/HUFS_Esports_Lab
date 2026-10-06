@@ -1,11 +1,13 @@
 {% extends 'layout.html' %}
 {% block content %}
-<div class="page-heading"><div><h1>좌석 예약</h1><p>{{ student.name }}님, 이용할 날짜와 시간을 선택하세요.</p></div><a href="{{ url_for('my_reservations') }}">내 예약 확인</a></div>
+<div class="page-heading"><div><h1>좌석 예약</h1><p>{{ student.name }}님, 이용할 날짜와 시간을 선택하세요. <span class="member-state">{{ '확인 회원' if student.identity_verified_at else '임시 회원' }}</span></p></div><a href="{{ url_for('my_reservations') }}">내 예약 확인</a></div>
+{% if booking_denial %}<p class="notice-banner" role="alert">{{ booking_denial }} 기존 예약은 <a href="{{ url_for('my_reservations') }}">내 예약</a>에서 확인할 수 있습니다.</p>{% else %}
 {% if current_user.must_change_password and not session.get('password_change_skipped') %}<div class="notice-banner" role="status"><p>기존 비밀번호를 사용 중입니다. 내 정보에서 숫자 6자리로 변경하거나 이번 로그인에서 건너뛸 수 있습니다. 다음 로그인 때 다시 안내합니다.</p><div class="inline-form"><a class="btn btn-secondary" href="{{ url_for('account') }}">비밀번호 변경</a><form method="post" action="{{ url_for('skip_password_change') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-secondary" type="submit">나중에 하기</button></form></div></div>{% endif %}
 {% if notice %}<p class="notice-banner">{{ notice }}</p>{% endif %}
 <form id="reservationForm" class="reservation-layout" data-seats="{{ seats|list|tojson }}" data-max-hours="{{ policy.max_hours }}" data-close-minute="{{ policy.close_hour * 60 }}" data-server-date="{{ today }}" data-server-minute="{{ server_minute }}">
 <section class="card"><h2 class="section-title">1. 날짜 &amp; 시간 선택</h2>
 <div class="form-group"><label for="res_date">예약 날짜 (한국 시간)</label><input type="date" id="res_date" class="form-control" min="{{ today }}" max="{{ last_date }}" required></div>
+{% if booking_window_days > policy.advance_days %}<p class="help-text">{{ student.department }} 선예약: 오늘부터 {{ booking_window_days }}일까지 선택할 수 있습니다. 일반 예약은 {{ policy.advance_days }}일까지입니다.</p>{% endif %}
 <div class="time-fields"><div class="form-group"><label for="start_time">시작 시간 (30분 단위)</label><select id="start_time" class="form-control" required><option value="">선택</option>{% for minute in range(policy.open_hour * 60, policy.close_hour * 60, 30) %}<option value="{{ '%02d:%02d'|format(minute // 60, minute % 60) }}">{{ '%02d:%02d'|format(minute // 60, minute % 60) }}</option>{% endfor %}</select></div>
 <div class="form-group"><label for="duration">이용 시간</label><select id="duration" class="form-control" required><option value="">선택</option>{% for minutes in range(30, policy.max_hours * 60 + 1, 30) %}<option value="{{ minutes }}">{% if minutes < 60 %}{{ minutes }}분{% elif minutes % 60 == 0 %}{{ minutes // 60 }}시간{% else %}{{ minutes // 60 }}시간 {{ minutes % 60 }}분{% endif %}</option>{% endfor %}</select></div></div>
 <input type="hidden" id="end_time">
@@ -18,7 +20,9 @@
 <span class="zone-key performance"><i aria-hidden="true"></i><strong>Evnia Performance Zone</strong><small>PC 1–10</small></span>
 <span class="zone-key arena"><i aria-hidden="true"></i><strong>Evnia Gaming Zone</strong><small>PC 11–27</small></span>
 <span class="zone-key unavailable"><i aria-hidden="true"></i><strong>예약/점검</strong><small>선택할 수 없음</small></span>
+{% if department_only_seats %}<span class="zone-key department"><i aria-hidden="true"></i><strong>글스산 전용</strong><small>다른 학과 선택 불가</small></span>{% endif %}
 </div>
+{% if department_only_seats %}<p class="seat-policy-note">PC {{ department_only_seats|sort|join(', ') }}은 글로벌스포츠산업학부 전용입니다.</p>{% endif %}
 <p id="availabilityStatus" role="status">날짜와 시간을 선택하면 좌석 상태를 확인합니다.</p>
 <div class="seat-map-wrapper"><div class="lab-room" id="labRoom" aria-label="실습실 좌석도"></div></div>
 <dialog id="seatDetailDialog" class="seat-detail-dialog" aria-labelledby="seatDetailTitle"
@@ -39,7 +43,8 @@
 <label class="check-label booking-agreement"><input id="usageAgreement" type="checkbox" required aria-describedby="reservationPolicy"> 이용 안내를 확인하고 동의합니다.</label>
 <button class="btn btn-primary full-width" id="submitReservation" disabled>예약하기</button>
 <p id="bookingError" role="alert"></p>
-<p class="privacy-note">예약 운영과 부정 이용 확인을 위해 예약 시 접속 IP 주소를 기록합니다. 운영진만 열람하며, 확인이 끝난 IP 주소는 삭제합니다.</p>
+<p class="privacy-note">예약 운영과 부정 이용 확인을 위해 예약 시 접속 IP 주소를 기록합니다. 운영진만 열람하며, 기관의 보관 기준에 따라 폐기합니다.</p>
 </section>
-</form><script src="{{ url_for('static', filename='js/main.js', v='20261003-agreement') }}" defer></script>
+</form><script src="{{ url_for('static', filename='js/main.js', v='20261006-department') }}" defer></script>
+{% endif %}
 {% endblock %}

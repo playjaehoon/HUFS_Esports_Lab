@@ -149,3 +149,44 @@ def test_gallery_image_upload_rejects_too_many_in_one_request(app):
     assert response.status_code == 400
     with app.app_context():
         assert db.session.scalar(db.select(db.func.count()).select_from(BoardPost)) == 0
+
+
+def test_admin_can_hide_and_restore_notice_and_gallery_without_deleting_images(app):
+    admin = login(app, admin=True)
+    visitor = app.test_client()
+    student = login(app)
+    assert post(admin, '/admin/posts/new', {'category': 'notice', 'title': '숨김 테스트 공지',
+                                            'body': '운영 안내'}).status_code == 302
+    sample = jpeg_with_metadata()
+    assert admin.post('/admin/posts/new', data={
+        'csrf_token': csrf(admin), 'category': 'gallery', 'title': '숨김 테스트 사진',
+        'body': '사진 안내', 'image_alt': '실습실 사진',
+        'image': (BytesIO(sample), 'cover.jpg'), 'attachments_alt': '추가 사진',
+        'attachments': (BytesIO(sample), 'extra.jpg')},
+        content_type='multipart/form-data').status_code == 302
+    with app.app_context():
+        notice_id = db.session.scalar(db.select(BoardPost.id).where(BoardPost.category == 'notice'))
+        gallery = db.session.scalar(db.select(BoardPost).where(BoardPost.category == 'gallery'))
+        gallery_id, attachment_id = gallery.id, gallery.attachments[0].id
+        filename = Path(app.config['BOARD_UPLOAD_DIR']) / gallery.image_path.removeprefix('uploads/')
+    assert post(admin, '/admin/popup', {'enabled': '1', 'mode': 'notice',
+                                        'notice_id': str(notice_id)}).status_code == 302
+    assert post(student, f'/admin/posts/{gallery_id}/visibility', {'visibility': 'hide'}).status_code == 403
+    for item_id in (notice_id, gallery_id):
+        assert post(admin, f'/admin/posts/{item_id}/visibility', {'visibility': 'hide'}).status_code == 302
+    assert '숨김 테스트 공지' not in visitor.get('/notices').get_data(as_text=True)
+    assert '숨김 테스트 사진' not in visitor.get('/gallery').get_data(as_text=True)
+    assert visitor.get(f'/notices/{notice_id}').status_code == 404
+    assert visitor.get(f'/gallery/{gallery_id}').status_code == 404
+    assert visitor.get(f'/board/image/{gallery_id}').status_code == 404
+    assert visitor.get(f'/board/image/{gallery_id}/{attachment_id}').status_code == 404
+    assert 'data-home-popup' not in visitor.get('/').get_data(as_text=True)
+    assert filename.is_file()
+    assert admin.get(f'/board/image/{gallery_id}').status_code == 200
+    assert '숨김' in admin.get('/admin/posts?category=gallery').get_data(as_text=True)
+    for item_id in (notice_id, gallery_id):
+        assert post(admin, f'/admin/posts/{item_id}/visibility', {'visibility': 'show'}).status_code == 302
+    assert '숨김 테스트 공지' in visitor.get('/notices').get_data(as_text=True)
+    assert '숨김 테스트 사진' in visitor.get('/gallery').get_data(as_text=True)
+    assert visitor.get(f'/board/image/{gallery_id}/{attachment_id}').status_code == 200
+    assert 'data-home-popup' in visitor.get('/').get_data(as_text=True)

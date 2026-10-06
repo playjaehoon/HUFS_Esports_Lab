@@ -62,4 +62,23 @@
         {% else %}<p class="board-empty">아직 등록된 사진이 없습니다.</p>{% endfor %}
     </div>
 </section>
+{% if popup %}
+<dialog class="home-popup" data-home-popup data-popup-version="{{ popup.version }}" data-popup-day="{{ popup_day }}" aria-labelledby="home-popup-title">
+    <div class="home-popup-panel">
+        <button type="button" class="home-popup-x" data-popup-close aria-label="팝업 닫기">×</button>
+        {% if popup.notice %}
+            <span class="home-popup-type">공지사항</span>
+            <h2 id="home-popup-title">{{ popup.notice.title }}</h2>
+            {% if popup.notice.attachments %}{% set first_image = popup.notice.attachments[0] %}<img class="home-popup-image" src="{{ url_for('board_attachment_image', post_id=popup.notice.id, attachment_id=first_image.id) }}" alt="{{ first_image.image_alt }}">{% endif %}
+            <div class="home-popup-body {{ 'board-body-html' if popup.notice.body_format == 'html' else '' }}">{% if popup.notice.body_format == 'html' %}{{ popup.notice.body|safe_board_html }}{% else %}{{ popup.notice.body }}{% endif %}</div>
+            <a class="home-popup-notice-link" href="{{ url_for('notice_post', post_id=popup.notice.id) }}">공지사항 자세히 보기 <span aria-hidden="true">↗</span></a>
+        {% else %}
+            {% if popup.config.title %}<h2 id="home-popup-title">{{ popup.config.title }}</h2>{% else %}<h2 id="home-popup-title" class="visually-hidden">실습실 안내</h2>{% endif %}
+            {% if popup.config.image_path %}<img class="home-popup-image" src="{{ url_for('popup_image') }}" alt="{{ popup.config.image_alt }}">{% endif %}
+            {% if popup.config.body %}<div class="home-popup-body">{{ popup.config.body }}</div>{% endif %}
+        {% endif %}
+        <div class="home-popup-actions"><button type="button" data-popup-today>오늘 보지 않기</button><button type="button" data-popup-close>닫기</button></div>
+    </div>
+</dialog>
+{% endif %}
 {% endblock %}

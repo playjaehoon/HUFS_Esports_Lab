@@ -1,6 +1,7 @@
 """Shared validation and transactional booking operations for SQLite."""
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
+import json
 import re
 from zoneinfo import ZoneInfo
 from flask import current_app
@@ -11,7 +12,9 @@ from models import (AuditEvent, BlockedTime, DailyBooking, RecurringBlock,
 KOREA = ZoneInfo('Asia/Seoul')
 SEATS = tuple(range(1, 28))  # Existing drawing; confirm onsite before deployment.
 DEFAULTS = {'reservation_open': '1', 'max_hours': '3', 'open_hour': '9', 'close_hour': '17',
-            'advance_days': '7', 'notice': '이용 당일 학생증을 준비해 주세요.',
+            'advance_days': '7', 'department_policy_mode': 'all', 'department_policy_list': '[]',
+            'department_seats': '[]', 'priority_departments': '[]', 'priority_advance_days': '14',
+            'notice': '이용 당일 학생증을 준비해 주세요.',
             'usage_notice': '물 이외 음식물 반입 금지\n이용 당일 학생증 지참 · 이용 후 자리 정리',
             'usage_details': '예약한 시간에 방문해 학생증(모바일 학생증 포함)을 보여주세요.\n물 이외 음식물은 반입하지 마세요.\n이용 후 좌석을 정리하고 운영진의 퇴실 확인을 받으세요.'}
 
@@ -30,7 +33,7 @@ def korea_now():
 def rules():
     values = dict(DEFAULTS)
     values.update({s.key: s.value for s in db.session.scalars(db.select(Setting))})
-    for key in ('max_hours', 'open_hour', 'close_hour', 'advance_days'):
+    for key in ('max_hours', 'open_hour', 'close_hour', 'advance_days', 'priority_advance_days'):
         values[key] = int(values[key])
     return values
 
@@ -69,7 +72,7 @@ def parse_date(value):
         raise RuleError('존재하지 않는 날짜입니다.') from None
 
 
-def booking_input(data, seat_required=True):
+def booking_input(data, seat_required=True, student=None):
     if not isinstance(data, dict):
         raise RuleError('예약 정보를 확인해 주세요.')
     date = parse_date(data.get('date'))
@@ -77,7 +80,7 @@ def booking_input(data, seat_required=True):
     end = time_minutes(data.get('end_time'), '종료 시간')
     policy = rules()
     now = korea_now()
-    if not now.date() <= date <= now.date() + timedelta(days=policy['advance_days']):
+    if not now.date() <= date <= now.date() + timedelta(days=booking_advance_days(student, policy)):
         raise RuleError('예약 가능한 날짜 범위를 벗어났습니다.')
     if not policy['open_hour'] * 60 <= start < end <= policy['close_hour'] * 60:
         raise RuleError('운영시간 안에서 시작·종료 시간을 선택해 주세요.')
@@ -110,6 +113,60 @@ def allowed_student(student):
         raise RuleError('이용이 제한된 계정입니다. 운영진에게 문의해 주세요.', 403)
 
 
+def department_policy():
+    """Return the current booking filter; legacy databases default to unrestricted."""
+    settings = {row.key: row.value for row in db.session.scalars(
+        db.select(Setting).where(Setting.key.in_(('department_policy_mode', 'department_policy_list'))))}
+    mode = settings.get('department_policy_mode', 'all')
+    try:
+        names = json.loads(settings.get('department_policy_list', '[]'))
+    except (TypeError, ValueError):
+        names = []
+    if not isinstance(names, list):
+        names = []
+    return mode, frozenset(name for name in names if isinstance(name, str))
+
+
+def department_seat_policy():
+    raw = db.session.scalar(db.select(Setting.value).where(Setting.key == 'department_seats')) or '[]'
+    try:
+        seats = json.loads(raw)
+    except (TypeError, ValueError):
+        seats = []
+    return frozenset(seat for seat in seats if type(seat) is int and seat in SEATS) if isinstance(seats, list) else frozenset()
+
+
+def priority_departments():
+    raw = db.session.scalar(db.select(Setting.value).where(Setting.key == 'priority_departments')) or '[]'
+    try:
+        names = json.loads(raw)
+    except (TypeError, ValueError):
+        names = []
+    return frozenset(name for name in names if isinstance(name, str)) if isinstance(names, list) else frozenset()
+
+
+def booking_advance_days(student, policy=None):
+    policy = policy or rules()
+    if student is not None and student.department in priority_departments():
+        return max(policy['advance_days'], policy['priority_advance_days'])
+    return policy['advance_days']
+
+
+def restricted_seats(student):
+    """Global Sports students may use designated seats; other students cannot."""
+    if student.department == '글로벌스포츠산업학부':
+        return frozenset()
+    return department_seat_policy()
+
+
+def allowed_booking_student(student):
+    allowed_student(student)
+    mode, names = department_policy()
+    if (mode == 'allowlist' and student.department not in names) or (
+            mode == 'blocklist' and student.department in names):
+        raise RuleError('현재 학과별 예약 대상에 포함되지 않습니다. 운영진에게 문의해 주세요.', 403)
+
+
 @contextmanager
 def write_transaction():
     # End read transactions from session loading, then serialize validation+writes.
@@ -138,6 +195,11 @@ def starts_at(reservation):
 
 def ends_at(reservation):
     return starts_at(reservation) + timedelta(minutes=reservation.end_minute - reservation.start_minute)
+
+
+def no_show_allowed(reservation, now):
+    """Staff may mark a missed visit from 15 minutes after the booking starts."""
+    return now >= starts_at(reservation) + timedelta(minutes=15)
 
 
 def cancellation_allowed(reservation, now):
