@@ -56,6 +56,8 @@ def test_public_home_and_reservation_entry(app):
     assert 'gsi@hufs.ac.kr' in body
     assert '실습실 소개' in body and '갤러리' in body and '공지사항' in body
     assert '관리자 로그인' in body
+    assert 'class="logo-strip"' in body
+    assert 'class="logo-strip"' not in client.get('/login').get_data(as_text=True)
     assert client.get('/reserve').headers['Location'].endswith('/login')
 
 
@@ -180,7 +182,7 @@ def test_admin_can_clear_booking_ip_after_review(app):
     admin = login(app, admin=True)
     dashboard = admin.get('/admin?date=2026-09-15').get_data(as_text=True)
     assert '접속 IP 127.0.0.1' in dashboard
-    assert '확인 후 IP 삭제' in dashboard
+    assert '확인 후 IP 삭제' not in dashboard
     response = post(admin, path)
     assert response.status_code == 302
     assert 'date=2026-09-15' in response.headers['Location']
@@ -333,7 +335,7 @@ def test_admin_settings_update_student_notices_and_duration_limit(app):
     assert '날짜 &amp; 시간 선택' in body
     assert '<details class="booking-rules" open>' in body
     assert '접속 IP 주소를 기록' in body
-    assert '확인이 끝난 IP 주소는 삭제' in body
+    assert '기관의 보관 기준에 따라 폐기' in body
     assert 'Evnia Performance Zone' in body
     assert 'Evnia Gaming Zone' in body
     assert 'id="seatDetailDialog"' in body
@@ -393,10 +395,147 @@ def test_missed_checkin_does_not_auto_ban(app):
     identifier = reserve(student,date='2026-09-14')
     app.config['NOW_PROVIDER'] = lambda: datetime(2026,9,15,8,tzinfo=ZoneInfo('Asia/Seoul'))
     reserve(student,date='2026-09-16')
+    dashboard = admin.get('/admin?date=2026-09-14').get_data(as_text=True)
+    assert f'action="/admin/no-show/{identifier}"' in dashboard
+    assert '노쇼 확정' in dashboard
     assert post(admin,f'/admin/no-show/{identifier}',{'reason':'Test confirmed absence'}).status_code == 302
     with app.app_context():
         assert db.session.get(Reservation,identifier).status == 'no_show'
         assert db.session.get(Student,1).blocked_until is None
+
+
+def test_no_show_opens_after_15_minutes_and_releases_seat_only(app):
+    student, admin = login(app), login(app, admin=True)
+    identifier = reserve(student)
+    path = f'/admin/no-show/{identifier}'
+    app.config['NOW_PROVIDER'] = lambda: datetime(2026, 9, 15, 10, 14, tzinfo=ZoneInfo('Asia/Seoul'))
+    before = admin.get('/admin?date=2026-09-15').get_data(as_text=True)
+    assert '학생증 확인 후 방문확인을 눌러주세요' in before
+    assert '예약 취소</summary>' not in before
+    assert '예약 시작 15분 후 노쇼를 확정할 수 있습니다.' in before
+    assert post(admin, path, {'reason': '미방문 확인'}).status_code == 409
+
+    app.config['NOW_PROVIDER'] = lambda: datetime(2026, 9, 15, 10, 15, tzinfo=ZoneInfo('Asia/Seoul'))
+    assert post(student, path, {'reason': '미방문 확인'}).status_code == 403
+    assert post(admin, path, {'reason': '미방문 확인'}).status_code == 302
+    with app.app_context():
+        assert db.session.get(Reservation, identifier).status == 'no_show'
+        assert db.session.scalar(db.select(db.func.count()).select_from(ReservationSlot).where(
+            ReservationSlot.reservation_id == identifier)) == 0
+        assert db.session.scalar(db.select(db.func.count()).select_from(DailyBooking).where(
+            DailyBooking.reservation_id == identifier)) == 1
+    other = login(app, student=2)
+    assert post(other, '/api/reserve', json=booking(start_time='10:30', end_time='11:00')).status_code == 201
+    assert post(student, '/api/reserve', json=booking(start_time='11:00', end_time='11:30', seat_number=2)).status_code == 409
+
+
+def test_department_policy_filters_new_bookings_without_changing_existing_reservations(app):
+    first, second, admin = login(app), login(app, student=2), login(app, admin=True)
+    with app.app_context():
+        db.session.get(Student, 1).department = '철학과'
+        db.session.get(Student, 2).department = '글로벌스포츠산업학부'
+        db.session.commit()
+    existing = reserve(first)
+    assert post(first, '/admin/departments', {'mode': 'blocklist', 'departments': ['철학과']}).status_code in {302, 403}
+    assert post(admin, '/admin/departments', {'mode': 'allowlist',
+                'departments': ['글로벌스포츠산업학부']}).status_code == 302
+    assert '학과별 예약 대상에 포함되지 않습니다' in first.get('/reserve').get_data(as_text=True)
+    assert first.get('/api/availability', query_string=booking()).status_code == 403
+    assert post(first, '/api/reserve', json=booking(date='2026-09-16')).status_code == 403
+    assert second.get('/api/availability', query_string=booking()).status_code == 200
+    with app.app_context():
+        assert db.session.get(Reservation, existing).status == 'active'
+    assert post(admin, '/admin/departments', {'mode': 'blocklist',
+                'departments': ['글로벌스포츠산업학부']}).status_code == 302
+    assert post(second, '/api/reserve', json=booking(date='2026-09-16')).status_code == 403
+    assert first.get('/api/availability', query_string=booking(date='2026-09-16')).status_code == 200
+    assert post(admin, '/admin/departments', {'mode': 'allowlist'}).status_code == 400
+    assert post(admin, '/admin/departments', {'mode': 'all'}).status_code == 302
+    assert second.get('/api/availability', query_string=booking()).status_code == 200
+
+
+def test_department_only_seats_apply_to_new_bookings_even_for_provisional_members(app):
+    global_student, other, admin = login(app), login(app, student=2), login(app, admin=True)
+    with app.app_context():
+        db.session.get(Student, 1).department = '글로벌스포츠산업학부'
+        db.session.get(Student, 2).department = '철학과'
+        db.session.commit()
+    existing = reserve(other, seat_number=1)
+    assert post(admin, '/admin/departments/seats', {'seat_numbers': ['1', '3']}).status_code == 302
+    assert post(admin, '/admin/departments/seats', {'seat_numbers': ['1', '1']}).status_code == 400
+    with app.app_context():
+        assert db.session.get(Reservation, existing).status == 'active'
+        assert db.session.get(Student, 1).identity_verified_at is None
+    availability = other.get('/api/availability', query_string=booking(date='2026-09-16')).get_json()
+    assert availability['restricted_seats'] == [1, 3]
+    assert global_student.get('/api/availability', query_string=booking(date='2026-09-16')).get_json()['restricted_seats'] == []
+    assert post(other, '/api/reserve', json=booking(date='2026-09-16', seat_number=1)).status_code == 403
+    assert post(global_student, '/api/reserve', json=booking(date='2026-09-16', seat_number=1)).status_code == 201
+    assert post(admin, '/admin/departments/seats', {}).status_code == 302
+    assert other.get('/api/availability', query_string=booking(date='2026-09-17')).get_json()['restricted_seats'] == []
+
+
+def test_department_priority_extends_booking_window_for_provisional_members(app):
+    global_student, other, admin = login(app), login(app, student=2), login(app, admin=True)
+    with app.app_context():
+        db.session.get(Student, 1).department = '글로벌스포츠산업학부'
+        db.session.get(Student, 2).department = '철학과'
+        db.session.commit()
+    assert post(admin, '/admin/departments/priority', {
+        'departments': ['글로벌스포츠산업학부'], 'priority_advance_days': '7'}).status_code == 400
+    assert post(admin, '/admin/departments/priority', {
+        'departments': ['글로벌스포츠산업학부'], 'priority_advance_days': '61'}).status_code == 400
+    assert post(admin, '/admin/departments/priority', {
+        'departments': ['글로벌스포츠산업학부'], 'priority_advance_days': '14'}).status_code == 302
+    assert 'max="2026-09-28"' in global_student.get('/reserve').get_data(as_text=True)
+    assert 'max="2026-09-21"' in other.get('/reserve').get_data(as_text=True)
+    assert other.get('/api/availability', query_string=booking(date='2026-09-25')).status_code == 400
+    assert global_student.get('/api/availability', query_string=booking(date='2026-09-25')).status_code == 200
+    assert post(other, '/api/reserve', json=booking(date='2026-09-25')).status_code == 400
+    assert post(global_student, '/api/reserve', json=booking(date='2026-09-25')).status_code == 201
+
+
+def test_card_check_automatically_verifies_member_and_profile_change_resets_it(app):
+    student, admin = login(app), login(app, admin=True)
+    assert '임시 회원' in student.get('/account').get_data(as_text=True)
+    identifier = reserve(student, date='2026-09-14')
+    app.config['NOW_PROVIDER'] = lambda: datetime(2026, 9, 14, 10, 10, tzinfo=ZoneInfo('Asia/Seoul'))
+    assert post(admin, f'/admin/attend/{identifier}', {'card_checked': '1'}).status_code == 302
+    with app.app_context():
+        member = db.session.get(Student, 1)
+        assert member.identity_verified_at is not None and member.identity_verified_by == 1
+    assert '확인 회원' in student.get('/account').get_data(as_text=True)
+    assert '확인 회원' in admin.get('/admin/students').get_data(as_text=True)
+    assert post(student, '/account', {'student_number': '202600001', 'name': 'Test student 1',
+                'department': '철학과', 'current_password': PASSWORD}).status_code == 302
+    with app.app_context():
+        assert db.session.get(Student, 1).identity_verified_at is None
+    assert '임시 회원' in student.get('/account').get_data(as_text=True)
+
+
+def test_undo_only_identity_check_returns_member_to_provisional(app):
+    student, admin = login(app), login(app, admin=True)
+    identifier = reserve(student, date='2026-09-14')
+    app.config['NOW_PROVIDER'] = lambda: datetime(2026, 9, 14, 10, 10, tzinfo=ZoneInfo('Asia/Seoul'))
+    assert post(admin, f'/admin/attend/{identifier}', {'card_checked': '1'}).status_code == 302
+    assert post(admin, f'/admin/unattend/{identifier}', {'reason': '입력 정정'}).status_code == 302
+    with app.app_context():
+        member = db.session.get(Student, 1)
+        assert member.identity_verified_at is None and member.identity_verified_by is None
+
+
+def test_seat_block_accepts_180_calendar_days_only(app):
+    admin = login(app, admin=True)
+    from datetime import date, timedelta
+    first = date(2026, 10, 1)
+    payload = {'start_date': first.isoformat(), 'block_type': 'all',
+               'seat_numbers': ['27'], 'reason': '장비 점검'}
+    assert post(admin, '/admin/block/seats', {**payload,
+                'end_date': (first + timedelta(days=180)).isoformat()}).status_code == 400
+    assert post(admin, '/admin/block/seats', {**payload,
+                'end_date': (first + timedelta(days=179)).isoformat()}).status_code == 302
+    with app.app_context():
+        assert db.session.scalar(db.select(db.func.count()).select_from(BlockedTime)) == 180
 
 
 def test_legacy_default_admin_is_rejected_and_session_ids_fail_closed(app):

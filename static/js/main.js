@@ -115,7 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ready = false; selected = null; previewed = null; submit.disabled = true; error.textContent = ''; timeError.textContent = '';
         if (detailDialog.open) detailDialog.close();
         start.removeAttribute('aria-invalid'); duration.removeAttribute('aria-invalid');
-        buttons.forEach(button => { button.disabled=true; button.classList.remove('selected','occupied'); button.setAttribute('aria-pressed','false'); });
+        buttons.forEach(button => { button.disabled=true; button.classList.remove('selected','occupied','department-only'); button.setAttribute('aria-pressed','false'); });
         summary.textContent = '날짜와 시간을 먼저 선택해 주세요.';
         if (!date.value || !start.value || !duration.value) { status.textContent='날짜, 시작 시간과 이용 시간을 선택해 주세요.'; return; }
         const problem = timeProblem();
@@ -127,7 +127,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (requestVersion !== version) return;
             if (!response.ok) throw new Error(data.message || '좌석 상태를 확인할 수 없습니다.');
             const occupied = new Set(data.occupied_seats), blocked = new Set(data.blocked_seats);
-            buttons.forEach((button,number) => { const unavailable=occupied.has(number)||blocked.has(number); const zone=number<=10?'Evnia Performance Zone':'Evnia Gaming Zone'; button.disabled=unavailable; button.classList.toggle('occupied',unavailable); button.setAttribute('aria-label',`PC ${number}, ${zone}, ${blocked.has(number)?'점검 또는 이용 제한':occupied.has(number)?'예약됨':'예약 가능, 장비 상세 보기'}`); });
+            const restricted = new Set(data.restricted_seats || []);
+            buttons.forEach((button,number) => { const unavailable=occupied.has(number)||blocked.has(number)||restricted.has(number); const zone=number<=10?'Evnia Performance Zone':'Evnia Gaming Zone'; button.disabled=unavailable; button.classList.toggle('occupied',blocked.has(number)||occupied.has(number)); button.classList.toggle('department-only',restricted.has(number)&&!blocked.has(number)&&!occupied.has(number)); button.setAttribute('aria-label',`PC ${number}, ${zone}, ${blocked.has(number)?'점검 또는 이용 제한':occupied.has(number)?'예약됨':restricted.has(number)?'글로벌스포츠산업학부 전용':'예약 가능, 장비 상세 보기'}`); });
             ready=true; status.textContent='예약할 좌석을 선택하세요.';
         } catch (failure) { if (failure.name !== 'AbortError' && requestVersion === version) status.textContent=failure.message || '연결을 확인하고 시간을 다시 선택해 주세요.'; }
     }

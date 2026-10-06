@@ -28,6 +28,91 @@
         syncDepartment();
     }
 
+    const logoRail = document.querySelector('[data-logo-rail]');
+    if (logoRail) {
+        const originalLogos = logoRail.querySelector('.logo-rail-set');
+        const repeatedLogos = originalLogos.cloneNode(true);
+        repeatedLogos.setAttribute('aria-hidden', 'true');
+        repeatedLogos.setAttribute('inert', '');
+        repeatedLogos.querySelectorAll('img').forEach(img => { img.alt = ''; });
+        repeatedLogos.querySelectorAll('a').forEach(link => { link.tabIndex = -1; });
+        logoRail.appendChild(repeatedLogos);
+        logoRail.classList.add('is-scrolling');
+    }
+
+    const popupEditor = document.querySelector('.popup-editor');
+    if (popupEditor) {
+        const showError = (name, message) => {
+            const target = popupEditor.querySelector(`[data-error-for="${name}"]`);
+            if (target) target.textContent = message;
+            const field = popupEditor.elements.namedItem(name);
+            if (field?.setAttribute) field.setAttribute('aria-invalid', message ? 'true' : 'false');
+        };
+        const syncMode = () => {
+            const mode = popupEditor.querySelector('input[name="mode"]:checked')?.value;
+            popupEditor.querySelectorAll('[data-popup-mode]').forEach(section => {
+                section.hidden = section.dataset.popupMode !== mode;
+            });
+        };
+        popupEditor.querySelectorAll('input[name="mode"]').forEach(input => input.addEventListener('change', syncMode));
+        popupEditor.addEventListener('input', event => {
+            if (event.target.name) showError(event.target.name, '');
+        });
+        popupEditor.addEventListener('change', event => {
+            if (event.target.name) showError(event.target.name, '');
+        });
+        popupEditor.addEventListener('submit', event => {
+            popupEditor.querySelectorAll('[data-error-for]').forEach(item => showError(item.dataset.errorFor, ''));
+            const mode = popupEditor.querySelector('input[name="mode"]:checked')?.value;
+            const enabled = popupEditor.elements.namedItem('enabled').value === '1';
+            const file = popupEditor.elements.namedItem('image').files[0];
+            const remove = popupEditor.elements.namedItem('remove_image')?.checked || false;
+            const hasImage = popupEditor.dataset.hasImage === '1' && !remove;
+            let first;
+            const fail = (name, message) => {
+                showError(name, message);
+                if (!first) first = popupEditor.elements.namedItem(name);
+            };
+            if (enabled && mode === 'notice' && !popupEditor.elements.namedItem('notice_id').value)
+                fail('notice_id', '팝업에 표시할 공지사항을 선택해 주세요.');
+            if (mode === 'custom') {
+                const body = popupEditor.elements.namedItem('body').value.trim();
+                const alt = popupEditor.elements.namedItem('image_alt').value.trim();
+                if (enabled && !body && !hasImage && !file) {
+                    fail('body', '본문이나 사진을 입력해 주세요.');
+                    fail('image', '본문을 쓰지 않는 경우 사진을 선택해 주세요.');
+                }
+                if (file && remove) fail('image', '사진 교체와 삭제 중 하나만 선택해 주세요.');
+                if (file && (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024))
+                    fail('image', 'JPG·PNG·WebP 사진을 5MB 이하로 선택해 주세요.');
+                if ((file || hasImage) && (alt.length < 2 || alt.length > 160))
+                    fail('image_alt', '사진 설명을 2~160자로 입력해 주세요.');
+            }
+            if (first) { event.preventDefault(); first.focus(); first.scrollIntoView({block: 'center', behavior: 'smooth'}); }
+        });
+        syncMode();
+    }
+
+    const homePopup = document.querySelector('[data-home-popup]');
+    if (homePopup) {
+        const key = `home-popup:${homePopup.dataset.popupVersion}:${homePopup.dataset.popupDay}`;
+        let hiddenToday = false;
+        try { hiddenToday = window.localStorage.getItem(key) === '1'; } catch (_) { /* Private browsing can block storage. */ }
+        if (!hiddenToday) {
+            if (typeof homePopup.showModal === 'function') homePopup.showModal();
+            else homePopup.setAttribute('open', '');
+        }
+        homePopup.querySelectorAll('[data-popup-close]').forEach(button => button.addEventListener('click', () => {
+            if (typeof homePopup.close === 'function') homePopup.close();
+            else homePopup.removeAttribute('open');
+        }));
+        homePopup.querySelector('[data-popup-today]').addEventListener('click', () => {
+            try { window.localStorage.setItem(key, '1'); } catch (_) { /* Current page can still close. */ }
+            if (typeof homePopup.close === 'function') homePopup.close();
+            else homePopup.removeAttribute('open');
+        });
+    }
+
     const viewport = document.querySelector('[data-carousel]');
     if (!viewport) return;
     const track = viewport.querySelector('.hero-track');

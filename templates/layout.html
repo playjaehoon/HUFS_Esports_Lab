@@ -18,8 +18,8 @@
     <meta property="og:image:alt" content="Philips Evnia Esports Lab 실습실 전경">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:description" content="캠퍼스에서 마주하는 외대인을 위한 E스포츠 공간.">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261004-process-stepper') }}">
-    <script src="{{ url_for('static', filename='js/site.js', v='20261004-departments') }}" defer></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261006-popup') }}">
+    <script src="{{ url_for('static', filename='js/site.js', v='20261006-popup') }}" defer></script>
 </head>
 <body class="{% block body_class %}{% endblock %}">
 <header class="site-header">
@@ -55,6 +55,7 @@
                         <a href="{{ url_for('admin_dashboard') }}">오늘 예약</a>
                         <a href="{{ url_for('admin_dashboard') }}#operation-settings">공지·설정</a>
                         <a href="{{ url_for('admin_posts') }}">게시글 관리</a>
+                        <a href="{{ url_for('admin_popup') }}">메인 팝업 관리</a>
                         <a href="{{ url_for('admin_students') }}">학생 관리</a>
                         <a href="{{ url_for('admin_stats') }}">이용 통계</a>
                         <a href="{{ url_for('admin_audit') }}">처리 기록</a>
@@ -80,9 +81,22 @@
     {% for message in get_flashed_messages() %}<p class="notice-banner" role="status">{{ message }}</p>{% endfor %}
     {% block content %}{% endblock %}
 </main>
+{% if request.endpoint == 'home' %}
+<section class="logo-strip" aria-label="실습실 관련 로고">
+    <div class="logo-rail" data-logo-rail>
+        <div class="logo-rail-set">
+            <img class="logo-rail-philips" src="{{ url_for('static', filename='images/philips-logo-blue.png') }}" alt="Philips" width="1920" height="543" loading="lazy">
+            <img class="logo-rail-evnia" src="{{ url_for('static', filename='images/evnia-wordmark-black.jpg') }}" alt="Evnia" width="2309" height="467" loading="lazy">
+            <a class="logo-rail-department" href="https://sport.hufs.ac.kr/" aria-label="글로벌스포츠산업학부 홈페이지">
+                <img src="{{ url_for('static', filename='images/global-sport-industry.png') }}" alt="글로벌스포츠산업학부" width="6328" height="1350" loading="lazy">
+            </a>
+        </div>
+    </div>
+</section>
+{% endif %}
 <footer class="site-footer">
     <div class="footer-inner">
-        <div class="footer-identity"><strong>Philips Evnia Esports Lab</strong><p>한국외국어대학교 글로벌캠퍼스의 e스포츠 실습 공간</p></div>
+        <div class="footer-identity"><strong>Philips Evnia Esports Lab</strong><p>한국외국어대학교 글로벌스포츠산업학부의 E스포츠 실습실</p></div>
         <div class="footer-contact"><p><span>위치</span> 경기도 용인시 처인구 모현읍 외대로 81<br>한국외국어대학교 글로벌캠퍼스 어문관 335호</p><p><span>문의</span> <a href="mailto:gsi@hufs.ac.kr">gsi@hufs.ac.kr</a></p></div>
         <p class="footer-copy">© {{ current_year }} Philips Evnia Esports Lab</p>
     </div>

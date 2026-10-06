@@ -1,6 +1,7 @@
 """HTTP handlers. Business rules and DB writes live in explicit boundaries."""
 from datetime import timedelta
 from ipaddress import ip_address
+import json
 import re
 from uuid import uuid4
 
@@ -10,9 +11,11 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from sqlalchemy.orm import joinedload
 
 from auth_helpers import admin_required, student_required, throttle
-from departments import DEPARTMENT_GROUPS, OTHER_CHOICES, department_form_value, selected_department
-from booking import (SEATS, RuleError, allowed_student, blocked_seats, booking_input,
-                     clock, ends_at, event, integer, korea_now, parse_date, release, rules,
+from departments import DEPARTMENT_GROUPS, DEPARTMENTS, OTHER_CHOICES, department_form_value, selected_department
+from booking import (SEATS, RuleError, allowed_student, allowed_booking_student, booking_advance_days,
+                     department_policy, department_seat_policy, priority_departments, restricted_seats,
+                     blocked_seats, booking_input,
+                     clock, ends_at, event, integer, korea_now, no_show_allowed, parse_date, release, rules,
                      time_minutes, cancellation_allowed,
                      starts_at, write_transaction)
 from models import (Admin, AuditEvent, BlockedTime, BoardPost, DailyBooking, RecurringBlock, Reservation,
@@ -63,13 +66,17 @@ def claim_number(number, owner):
 def register_routes(app):
     @app.route('/')
     def home():
-        recent_gallery = db.session.scalars(db.select(BoardPost).where(BoardPost.category == 'gallery').order_by(
+        from popup_routes import visible_popup
+        recent_gallery = db.session.scalars(db.select(BoardPost).where(
+            BoardPost.category == 'gallery', BoardPost.is_hidden.is_(False)).order_by(
             BoardPost.created_at.desc(), BoardPost.id.desc()).limit(3)).all()
-        recent_notices = db.session.scalars(db.select(BoardPost).where(BoardPost.category == 'notice').order_by(
+        recent_notices = db.session.scalars(db.select(BoardPost).where(
+            BoardPost.category == 'notice', BoardPost.is_hidden.is_(False)).order_by(
             BoardPost.created_at.desc(), BoardPost.id.desc()).limit(3)).all()
         policy = rules()
         return render_template('home.html', recent_gallery=recent_gallery, recent_notices=recent_notices,
-                               usage_notice=policy['usage_notice'], usage_details=policy['usage_details'])
+                               usage_notice=policy['usage_notice'], usage_details=policy['usage_details'],
+                               popup=visible_popup(), popup_day=korea_now().date().isoformat())
 
     @app.route('/usage')
     def usage_guide():
@@ -84,10 +91,18 @@ def register_routes(app):
             return redirect(url_for('admin_dashboard'))
         policy = rules()
         now = korea_now()
+        try:
+            allowed_booking_student(current_user)
+            booking_denial = None
+        except RuleError as exc:
+            booking_denial = str(exc)
         return render_template('index.html', student=current_user, policy=policy,
+                               booking_denial=booking_denial,
                                notice=policy['notice'], seats=SEATS,
                                today=now.date().isoformat(),
-                               last_date=(now.date() + timedelta(days=policy['advance_days'])).isoformat(),
+                               last_date=(now.date() + timedelta(days=booking_advance_days(current_user, policy))).isoformat(),
+                               booking_window_days=booking_advance_days(current_user, policy),
+                               department_only_seats=department_seat_policy(),
                                server_minute=now.hour * 60 + now.minute)
 
     @app.route('/login', methods=['GET', 'POST'])
@@ -175,6 +190,8 @@ def register_routes(app):
                     raise RuleError('현재 비밀번호를 확인해 주세요.', 403)
                 claim_number(current_user.student_number, current_user.id)
                 claim_number(number, current_user.id)
+                if (current_user.student_number, current_user.name, current_user.department) != (number, name, department):
+                    current_user.identity_verified_at = current_user.identity_verified_by = None
                 current_user.student_number, current_user.name, current_user.department = number, name, department
                 event(actor(), 'profile_update', current_user.id)
             flash('회원정보를 수정했습니다. 기존 예약과 이용 이력은 유지됩니다.')
@@ -256,11 +273,13 @@ def register_routes(app):
     @app.route('/api/availability')
     @student_required
     def get_availability():
-        date, start, end, _ = booking_input(request.args.to_dict(), seat_required=False)
+        allowed_booking_student(current_user)
+        date, start, end, _ = booking_input(request.args.to_dict(), seat_required=False, student=current_user)
         blocked = blocked_seats(date, start, end)
         occupied = set(db.session.scalars(db.select(ReservationSlot.seat_number).where(
             ReservationSlot.date == date, ReservationSlot.minute >= start, ReservationSlot.minute < end)))
-        return jsonify(occupied_seats=sorted(occupied), blocked_seats=sorted(blocked))
+        return jsonify(occupied_seats=sorted(occupied), blocked_seats=sorted(blocked),
+                       restricted_seats=sorted(restricted_seats(current_user)))
 
     @app.route('/api/reserve', methods=['POST'])
     @student_required
@@ -269,8 +288,10 @@ def register_routes(app):
         if not isinstance(data, dict) or data.get('usage_agreed') is not True:
             raise RuleError('이용 안내를 확인하고 동의해 주세요.')
         with write_transaction():
-            allowed_student(current_user)
-            date, start, end, seat = booking_input(data)
+            allowed_booking_student(current_user)
+            date, start, end, seat = booking_input(data, student=current_user)
+            if seat in restricted_seats(current_user):
+                raise RuleError('선택한 좌석은 글로벌스포츠산업학부 전용입니다.', 403)
             if seat in blocked_seats(date, start, end):
                 raise RuleError('해당 시간 또는 좌석은 이용이 제한되어 있습니다.', 409)
             # Unique constraints are the final arbiter for both quota and occupancy.
@@ -309,10 +330,82 @@ def register_routes(app):
             RecurringBlock.weekday, RecurringBlock.start_minute)).all()
         groups = [{**group, 'seats': sorted(group['seats']), 'dates': sorted(group['dates'])}
                   for group in grouped.values()]
+        department_mode, department_names = department_policy()
+        known_departments = db.session.scalars(db.select(Student.department).where(Student.department.is_not(None)).distinct()).all()
+        extra_departments = sorted(set(known_departments) - DEPARTMENTS)
         return render_template('admin_dashboard.html', reservations=reservations, day=day, term=term,
                                policy=rules(), event_groups=[g for g in groups if g['first'].kind == 'event'],
                                seat_groups=[g for g in groups if g['first'].kind == 'seats'], recurring_blocks=recurring,
-                               seats=SEATS, now=korea_now(), ends_at=ends_at)
+                               seats=SEATS, now=korea_now(), starts_at=starts_at, ends_at=ends_at,
+                               no_show_allowed=no_show_allowed,
+                               department_groups=DEPARTMENT_GROUPS, extra_departments=extra_departments,
+                               department_mode=department_mode, department_names=department_names,
+                               department_seats=department_seat_policy(),
+                               priority_departments=priority_departments())
+
+    @app.route('/admin/departments', methods=['POST'])
+    @admin_required
+    def admin_department_policy():
+        mode = request.form.get('mode')
+        if mode not in {'all', 'allowlist', 'blocklist'}:
+            raise RuleError('학과별 예약 방식을 선택해 주세요.')
+        selected = set(request.form.getlist('departments'))
+        known = set(db.session.scalars(db.select(Student.department).where(Student.department.is_not(None)).distinct()))
+        if not selected <= DEPARTMENTS | known or len(selected) > 100:
+            raise RuleError('학과 목록을 확인해 주세요.')
+        if mode == 'allowlist' and not selected:
+            raise RuleError('허용 목록에 학과를 하나 이상 선택해 주세요.')
+        with write_transaction():
+            for key, value in {'department_policy_mode': mode,
+                               'department_policy_list': json.dumps(sorted(selected), ensure_ascii=False)}.items():
+                setting = db.session.scalar(db.select(Setting).where(Setting.key == key))
+                if setting is None:
+                    db.session.add(Setting(key=key, value=value))
+                else:
+                    setting.value = value
+            event(actor(), 'department_policy', mode, f'{len(selected)} departments')
+        flash('학과별 예약 정책을 저장했습니다. 이미 확정된 예약은 그대로 유지됩니다.')
+        return redirect(url_for('admin_dashboard') + '#department-policy')
+
+    @app.route('/admin/departments/seats', methods=['POST'])
+    @admin_required
+    def admin_department_seats():
+        seat_values = request.form.getlist('seat_numbers')
+        seats = {integer(value, '좌석 번호') for value in seat_values}
+        if len(seats) != len(seat_values) or not seats <= set(SEATS):
+            raise RuleError('전용 좌석 목록을 확인해 주세요.')
+        with write_transaction():
+            setting = db.session.scalar(db.select(Setting).where(Setting.key == 'department_seats'))
+            value = json.dumps(sorted(seats))
+            if setting is None:
+                db.session.add(Setting(key='department_seats', value=value))
+            else:
+                setting.value = value
+            event(actor(), 'department_seats', '글로벌스포츠산업학부', f'{len(seats)} seats')
+        flash('전용 좌석을 저장했습니다. 새 예약부터 적용됩니다.')
+        return redirect(url_for('admin_dashboard') + '#department-policy')
+
+    @app.route('/admin/departments/priority', methods=['POST'])
+    @admin_required
+    def admin_department_priority():
+        selected = set(request.form.getlist('departments'))
+        known = set(db.session.scalars(db.select(Student.department).where(Student.department.is_not(None)).distinct()))
+        days = integer(request.form.get('priority_advance_days'), '선예약 가능 기간')
+        if len(selected) > 100 or not selected <= DEPARTMENTS | known or days > 60:
+            raise RuleError('선예약 학과 또는 기간을 확인해 주세요.')
+        if selected and days <= rules()['advance_days']:
+            raise RuleError('선예약 기간은 일반 예약 가능 기간보다 길어야 합니다.')
+        with write_transaction():
+            for key, value in {'priority_departments': json.dumps(sorted(selected), ensure_ascii=False),
+                               'priority_advance_days': str(days)}.items():
+                setting = db.session.scalar(db.select(Setting).where(Setting.key == key))
+                if setting is None:
+                    db.session.add(Setting(key=key, value=value))
+                else:
+                    setting.value = value
+            event(actor(), 'department_priority', str(days), f'{len(selected)} departments')
+        flash('학과별 선예약 기간을 저장했습니다. 새 예약부터 적용됩니다.')
+        return redirect(url_for('admin_dashboard') + '#department-policy')
 
     @app.route('/admin/students')
     @admin_required
@@ -421,8 +514,8 @@ def register_routes(app):
     def admin_block_seats():
         first_date = parse_date(request.form.get('start_date'))
         last_date = parse_date(request.form.get('end_date'))
-        if first_date > last_date or (last_date - first_date).days > 60:
-            raise RuleError('좌석 차단 기간은 시작일부터 최대 60일까지 지정해 주세요.')
+        if first_date > last_date or (last_date - first_date).days >= 180:
+            raise RuleError('좌석 차단 기간은 시작일을 포함해 최대 180일까지 지정해 주세요.')
         dates = [(first_date + timedelta(days=offset)).isoformat()
                  for offset in range((last_date - first_date).days + 1)]
         start, end = block_range(request.form)
@@ -522,6 +615,8 @@ def register_routes(app):
             if not reservation.is_attended:
                 reservation.is_attended, reservation.checked_in_at, reservation.checked_in_by = True, utcnow(), current_user.id
                 reservation.student_id, reservation.student_name = reservation.student.student_number, reservation.student.name
+                reservation.student.identity_verified_at = reservation.checked_in_at
+                reservation.student.identity_verified_by = current_user.id
                 event(actor(), 'check_in', reservation.id)
         return redirect(url_for('admin_dashboard'))
 
@@ -548,6 +643,17 @@ def register_routes(app):
             reservation = db.get_or_404(Reservation, reservation_id)
             if reservation.status != 'active' or not reservation.is_attended:
                 raise RuleError('이용 중인 예약만 체크인을 정정할 수 있습니다.', 409)
+            if reservation.student.identity_verified_at == reservation.checked_in_at:
+                previous = db.session.scalar(db.select(Reservation).where(
+                    Reservation.student_pk == reservation.student_pk,
+                    Reservation.id != reservation.id,
+                    Reservation.is_attended.is_(True),
+                    Reservation.checked_in_at.is_not(None),
+                    Reservation.student_id == reservation.student.student_number,
+                    Reservation.student_name == reservation.student.name,
+                ).order_by(Reservation.checked_in_at.desc()).limit(1))
+                reservation.student.identity_verified_at = previous.checked_in_at if previous else None
+                reservation.student.identity_verified_by = previous.checked_in_by if previous else None
             reservation.is_attended = False
             event(actor(), 'undo_check_in', reservation.id, reason)
             reservation.checked_in_at = reservation.checked_in_by = None
@@ -561,12 +667,16 @@ def register_routes(app):
             raise RuleError('노쇼 확인 사유를 입력해 주세요.')
         with write_transaction():
             reservation = db.get_or_404(Reservation, reservation_id)
-            if reservation.status != 'active' or reservation.is_attended or ends_at(reservation) > korea_now():
-                raise RuleError('종료 시간이 지난 미방문 예약만 노쇼로 확정할 수 있습니다.', 409)
+            if reservation.status != 'active' or reservation.is_attended or not no_show_allowed(reservation, korea_now()):
+                raise RuleError('예약 시작 15분 후 미방문 예약만 노쇼로 확정할 수 있습니다.', 409)
             reservation.status = 'no_show'
+            # Release the seat for other students while retaining this student's
+            # one-booking-per-day record and the no-show audit trail.
+            db.session.execute(db.delete(ReservationSlot).where(ReservationSlot.reservation_id == reservation.id))
             event(actor(), 'no_show', reservation.id, reason)
+            day = reservation.date
         flash('노쇼를 기록했습니다. 이용 제한은 학생 관리에서 별도로 적용하세요.')
-        return redirect(url_for('admin_dashboard'))
+        return redirect(url_for('admin_dashboard', date=day))
 
     @app.route('/admin/settings', methods=['POST'])
     @admin_required

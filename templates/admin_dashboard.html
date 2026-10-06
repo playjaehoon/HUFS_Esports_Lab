@@ -1,28 +1,30 @@
 {% extends 'layout.html' %}{% from '_forms.html' import csrf, input, half_hour_select %}
 {% block content %}
 <h1 class="page-title">당일 이용 관리</h1>
-<nav class="admin-content-links" aria-label="홈페이지 콘텐츠 관리"><a href="#operation-settings">이용 시 유의사항 수정</a><a href="{{ url_for('admin_posts', category='notice') }}">공지사항 관리</a><a href="{{ url_for('admin_posts', category='gallery') }}">갤러리 관리</a></nav>
+<nav class="admin-content-links" aria-label="관리 바로가기"><a href="#operation-settings">이용 시 유의사항 수정</a><a href="#department-policy">학과별 예약 정책</a><a href="{{ url_for('admin_posts', category='notice') }}">공지사항 관리</a><a href="{{ url_for('admin_posts', category='gallery') }}">갤러리 관리</a><a href="{{ url_for('admin_popup') }}">메인 팝업 관리</a></nav>
 <form class="filter-row" method="get"><label>날짜 <input class="form-control" type="date" name="date" value="{{ day }}" required></label><label>이름·학번 <input class="form-control" name="q" value="{{ term }}" maxlength="50"></label><button class="btn btn-primary">조회</button></form>
 <section class="card"><h2 class="section-title">{{ day }} 예약 · {{ reservations|length }}건</h2>
 {% for r in reservations %}
 <article class="admin-reservation">
 <div><span class="status-badge">{{ r.state_label }}</span><h3>{{ r.start_minute|clock }}–{{ r.end_minute|clock }} · PC {{ r.seat_number }}</h3>
 <p>{{ r.student.name }} · {{ r.student.student_number }} · 예약 #{{ r.id }}{% if r.booking_ip %} · 접속 IP {{ r.booking_ip }}{% endif %}</p>
-{% if r.booking_ip %}<form method="post" action="{{ url_for('admin_clear_booking_ip', reservation_id=r.id) }}" class="inline-form">{{ csrf() }}<button class="btn btn-secondary" type="submit">확인 후 IP 삭제</button></form>{% endif %}
 {% if r.status != 'active' or r.is_attended %}<small>기록 당시: {{ r.student_name }} · {{ r.student_id }}</small>{% endif %}</div>
 <div class="admin-actions">
 {% if r.status == 'active' %}
     {% if r.is_attended %}
     <form method="post" action="{{ url_for('admin_checkout', reservation_id=r.id) }}">{{ csrf() }}<button class="btn btn-primary">퇴실 확인</button></form>
     <details><summary>체크인 정정</summary><form method="post" action="{{ url_for('admin_unattend_reservation', reservation_id=r.id) }}">{{ csrf() }}<label>정정 사유 <input class="form-control" name="reason" required maxlength="200"></label><button class="btn">체크인 취소</button></form></details>
-    {% elif r.date == now.date().isoformat() and ends_at(r) > now %}
-    <form method="post" action="{{ url_for('admin_attend_reservation', reservation_id=r.id) }}">{{ csrf() }}<label class="check-label"><input type="checkbox" name="card_checked" value="1" required> 학생증의 학교·이름·학번을 대조했습니다</label><button class="btn btn-primary">체크인</button></form>
+    {% elif r.date == now.date().isoformat() and starts_at(r) <= now and ends_at(r) > now %}
+    <form method="post" action="{{ url_for('admin_attend_reservation', reservation_id=r.id) }}">{{ csrf() }}<label class="check-label"><input type="checkbox" name="card_checked" value="1" required> 학생증 확인 후 방문확인을 눌러주세요</label><button class="btn btn-primary">방문 확인</button></form>
+    {% elif ends_at(r) > now %}<p class="help-text">예약 시작 시간이 되면 학생증 확인 후 방문확인을 눌러주세요.</p>
     {% endif %}
     {% if not r.is_attended %}
-    <details><summary>예약 취소{% if ends_at(r) <= now %} / 노쇼 확정{% endif %}</summary>
-        <form method="post" action="{{ url_for('admin_cancel_reservation', reservation_id=r.id) }}">{{ csrf() }}<label class="check-label"><input type="checkbox" required> 취소 확인</label><button class="btn btn-danger">예약 취소</button></form>
-        {% if ends_at(r) <= now %}<form method="post" action="{{ url_for('admin_no_show', reservation_id=r.id) }}">{{ csrf() }}<label>미방문 확인 사유 <input class="form-control" name="reason" required maxlength="200"></label><button class="btn">노쇼 확정</button></form>{% endif %}
-    </details>{% endif %}
+    {% set can_mark_no_show = no_show_allowed(r, now) %}
+    <form class="no-show-action" method="post" action="{{ url_for('admin_no_show', reservation_id=r.id) }}">{{ csrf() }}
+        <label>미방문 확인 사유 <input class="form-control" name="reason" required maxlength="200" {% if not can_mark_no_show %}disabled{% endif %}></label>
+        {% if not can_mark_no_show %}<p class="help-text" id="no-show-wait-{{ r.id }}">예약 시작 15분 후 노쇼를 확정할 수 있습니다.</p>{% endif %}
+        <button class="btn btn-secondary" {% if not can_mark_no_show %}disabled aria-describedby="no-show-wait-{{ r.id }}"{% endif %}>노쇼 확정</button>
+    </form>{% endif %}
 {% endif %}</div></article>
 {% else %}<p class="empty-state">해당 날짜에 예약이 없습니다.</p>{% endfor %}</section>
 <div class="account-grid">
@@ -38,6 +40,31 @@
 {{ input(key, label, 'number', value=policy[key]) }}{% endfor %}
 <p class="help-text">기존 예약의 시간은 유지됩니다. 접수 중지는 전체 서비스 점검 모드가 아닙니다.</p>
 <button class="btn btn-primary">설정 저장</button></form></details>
+<details class="card department-policy" id="department-policy"><summary>학과별 예약 정책</summary>
+<p class="help-text">학과는 가입자가 직접 선택합니다. 임시 회원도 입력한 학과를 기준으로 전용 좌석과 선예약을 이용할 수 있으므로 방문 시 학생증을 확인해 주세요. 설정 변경은 새 예약에만 적용됩니다.</p>
+<h3 class="subsection-title">글로벌스포츠산업학부 전용 좌석</h3>
+<form method="post" action="{{ url_for('admin_department_seats') }}">{{ csrf() }}
+<p class="help-text">선택한 좌석은 글로벌스포츠산업학부 학생만 새로 예약할 수 있습니다. 선택을 모두 해제하면 전용 좌석 정책이 꺼집니다.</p>
+<fieldset><legend>전용 좌석 선택</legend><div class="seat-checkbox-grid">{% for seat in seats %}<label><input type="checkbox" name="seat_numbers" value="{{ seat }}" {% if seat in department_seats %}checked{% endif %}> PC {{ seat }}</label>{% endfor %}</div></fieldset>
+<button class="btn btn-primary">전용 좌석 저장</button></form>
+<h3 class="subsection-title">학과별 선예약</h3>
+<form method="post" action="{{ url_for('admin_department_priority') }}">{{ csrf() }}
+<p class="help-text">일반 예약은 오늘부터 {{ policy.advance_days }}일, 선택한 학과는 더 먼 날짜까지 예약할 수 있습니다. 학과 선택을 모두 해제하면 선예약이 꺼집니다.</p>
+{{ input('priority_advance_days', '선예약 가능 기간 (오늘부터 일수, 최대 60일)', 'number', value=policy.priority_advance_days) }}
+<div class="department-choice-list">{% for group, names in department_groups %}<fieldset><legend>{{ group }}</legend>{% for name in names %}<label><input type="checkbox" name="departments" value="{{ name }}" {% if name in priority_departments %}checked{% endif %}> {{ name }}</label>{% endfor %}</fieldset>{% endfor %}
+{% if extra_departments %}<fieldset><legend>현재 회원이 입력한 기타 학과</legend>{% for name in extra_departments %}<label><input type="checkbox" name="departments" value="{{ name }}" {% if name in priority_departments %}checked{% endif %}> {{ name }}</label>{% endfor %}</fieldset>{% endif %}</div>
+<button class="btn btn-primary">선예약 정책 저장</button></form>
+<h3 class="subsection-title">전체 예약 대상</h3>
+<form method="post" action="{{ url_for('admin_department_policy') }}">{{ csrf() }}
+<p class="help-text">새 예약에만 적용됩니다. 기존 예약과 가입은 유지됩니다. 학과는 학생이 입력한 정보이므로 방문 시 학생증을 대조해 주세요.</p>
+<fieldset><legend>예약 방식</legend><div class="department-mode-options">
+<label><input type="radio" name="mode" value="all" {% if department_mode == 'all' %}checked{% endif %}> 모든 학과 허용</label>
+<label><input type="radio" name="mode" value="allowlist" {% if department_mode == 'allowlist' %}checked{% endif %}> 선택한 학과만 허용</label>
+<label><input type="radio" name="mode" value="blocklist" {% if department_mode == 'blocklist' %}checked{% endif %}> 선택한 학과만 차단</label></div></fieldset>
+<p class="help-text">아래 목록은 허용 또는 차단할 학과로 사용됩니다. 허용 목록 방식에서는 학과 미입력 회원도 예약할 수 없습니다.</p>
+<div class="department-choice-list">{% for group, names in department_groups %}<fieldset><legend>{{ group }}</legend>{% for name in names %}<label><input type="checkbox" name="departments" value="{{ name }}" {% if name in department_names %}checked{% endif %}> {{ name }}</label>{% endfor %}</fieldset>{% endfor %}
+{% if extra_departments %}<fieldset><legend>현재 회원이 입력한 기타 학과</legend>{% for name in extra_departments %}<label><input type="checkbox" name="departments" value="{{ name }}" {% if name in department_names %}checked{% endif %}> {{ name }}</label>{% endfor %}</fieldset>{% endif %}</div>
+<button class="btn btn-primary">학과별 정책 저장</button></form></details>
 <details class="card"><summary>1. 정기 수업 차단</summary>
 <p class="help-text">매주 같은 요일과 시간에 실습실 전체를 차단합니다.</p>
 <form method="post" action="{{ url_for('admin_block_recurring') }}">{{ csrf() }}
@@ -53,7 +80,7 @@
 <h3 class="subsection-title">예정된 대관</h3>{% for group in event_groups %}{% set b=group.first %}<div class="block-entry"><p>{{ b.date }} · {% if b.start_minute is none %}하루 전체{% else %}{{ b.start_minute|clock }}–{{ b.end_minute|clock }}{% endif %}<br>{{ b.reason }}</p><form method="post" action="{{ url_for('admin_unblock_time',block_id=b.id) }}">{{ csrf() }}<button class="btn">해제</button></form></div>{% else %}<p class="empty-state">예정된 대관이 없습니다.</p>{% endfor %}
 </details>
 <details class="card"><summary>3. 일부 좌석 일괄 차단</summary>
-<p class="help-text">고장석이나 운영하지 않을 좌석을 한 번에 선택합니다.</p>
+<p class="help-text">고장석이나 운영하지 않을 좌석을 한 번에 선택합니다. 시작일을 포함해 최대 180일입니다.</p>
 <form method="post" action="{{ url_for('admin_block_seats') }}">{{ csrf() }}<div class="time-fields">{{ input('start_date','시작 날짜','date',id='seats_start_date') }}{{ input('end_date','종료 날짜','date',id='seats_end_date') }}</div>
 <label class="form-group">차단 범위<select name="block_type" class="form-control"><option value="all">하루 전체</option><option value="specific">지정 시간</option></select></label>
 {{ half_hour_select('start_time','시작 시간','seats_start',policy.open_hour,policy.close_hour,false) }}{{ half_hour_select('end_time','종료 시간','seats_end',policy.open_hour,policy.close_hour,false) }}

@@ -26,6 +26,8 @@ class Student(UserMixin, db.Model):
     student_number = db.Column(db.String(9), unique=True, nullable=False)
     name = db.Column(db.String(50), nullable=False)
     department = db.Column(db.String(100))
+    identity_verified_at = db.Column(db.DateTime)
+    identity_verified_by = db.Column(db.Integer, db.ForeignKey('admin.id'))
     password_hash = db.Column(db.String(255), nullable=False)
     blocked_until = db.Column(db.DateTime)
     archived = db.Column(db.Boolean, nullable=False, default=False)
@@ -139,6 +141,7 @@ class BoardPost(db.Model):
     title = db.Column(db.String(120), nullable=False)
     body = db.Column(db.Text, nullable=False)
     body_format = db.Column(db.String(10), nullable=False, default='text', server_default='text')
+    is_hidden = db.Column(db.Boolean, nullable=False, default=False, server_default='0')
     image_path = db.Column(db.String(200))
     image_alt = db.Column(db.String(160))
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow, index=True)
@@ -159,6 +162,25 @@ class BoardAttachment(db.Model):
     image_path = db.Column(db.String(200), nullable=False)
     image_alt = db.Column(db.String(160), nullable=False)
     post = db.relationship(BoardPost, back_populates='attachments')
+
+
+class HomePopup(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    mode = db.Column(db.String(10), nullable=False)
+    notice_id = db.Column(db.Integer)
+    title = db.Column(db.String(120), nullable=False, default='')
+    body = db.Column(db.Text, nullable=False, default='')
+    image_path = db.Column(db.String(200))
+    image_alt = db.Column(db.String(160), nullable=False, default='')
+    is_active = db.Column(db.Boolean, nullable=False, default=False, server_default='0')
+    version = db.Column(db.String(64), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow, index=True)
+    updated_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+    __table_args__ = (
+        db.CheckConstraint("mode IN ('notice','custom')", name='home_popup_mode'),
+        db.Index('uq_home_popup_one_active', 'is_active', unique=True,
+                 sqlite_where=db.text('is_active = 1')),
+    )
 
 
 class AuditEvent(db.Model):

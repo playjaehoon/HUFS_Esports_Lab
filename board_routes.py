@@ -12,7 +12,7 @@ import nh3
 
 from auth_helpers import admin_required
 from booking import RuleError, event, write_transaction
-from models import BoardAttachment, BoardPost, db, utcnow
+from models import Admin, BoardAttachment, BoardPost, db, utcnow
 
 
 IMAGE_LIMIT = 5 * 1024 * 1024
@@ -34,13 +34,23 @@ def display_html(value):
     return Markup(clean_html(value))
 
 
-def posts_for(category):
-    return db.select(BoardPost).where(BoardPost.category == category).order_by(
+def posts_for(category, include_hidden=False):
+    query = db.select(BoardPost).where(BoardPost.category == category)
+    if not include_hidden:
+        query = query.where(BoardPost.is_hidden.is_(False))
+    return query.order_by(
         BoardPost.created_at.desc(), BoardPost.id.desc())
 
 
-def content(post_id, category):
-    return db.first_or_404(db.select(BoardPost).where(BoardPost.id == post_id, BoardPost.category == category))
+def content(post_id, category, include_hidden=False):
+    query = db.select(BoardPost).where(BoardPost.id == post_id, BoardPost.category == category)
+    if not include_hidden:
+        query = query.where(BoardPost.is_hidden.is_(False))
+    return db.first_or_404(query)
+
+
+def staff_view():
+    return current_user.is_authenticated and isinstance(current_user._get_current_object(), Admin)
 
 
 def stored_image(path):
@@ -150,7 +160,7 @@ def register_board_routes(app):
 
     @app.route('/board/image/<int:post_id>')
     def board_image(post_id):
-        post = content(post_id, 'gallery')
+        post = content(post_id, 'gallery', include_hidden=staff_view())
         if post.image_path in STATIC_IMAGES:
             return redirect(url_for('static', filename=post.image_path))
         path = stored_image(post.image_path)
@@ -160,8 +170,11 @@ def register_board_routes(app):
 
     @app.route('/board/image/<int:post_id>/<int:attachment_id>')
     def board_attachment_image(post_id, attachment_id):
-        attachment = db.first_or_404(db.select(BoardAttachment).where(
-            BoardAttachment.id == attachment_id, BoardAttachment.post_id == post_id))
+        query = db.select(BoardAttachment).join(BoardPost).where(
+            BoardAttachment.id == attachment_id, BoardAttachment.post_id == post_id)
+        if not staff_view():
+            query = query.where(BoardPost.is_hidden.is_(False))
+        attachment = db.first_or_404(query)
         path = stored_image(attachment.image_path)
         if path is None:
             abort(404)
@@ -174,8 +187,22 @@ def register_board_routes(app):
         if category not in {'notice', 'gallery'}:
             abort(404)
         page = max(1, request.args.get('page', default=1, type=int))
-        posts = db.paginate(posts_for(category), page=page, per_page=20, error_out=False)
+        posts = db.paginate(posts_for(category, include_hidden=True), page=page, per_page=20, error_out=False)
         return render_template('admin_posts.html', category=category, posts=posts)
+
+    @app.route('/admin/posts/<int:post_id>/visibility', methods=['POST'])
+    @admin_required
+    def admin_post_visibility(post_id):
+        visibility = request.form.get('visibility')
+        if visibility not in {'show', 'hide'}:
+            raise RuleError('게시글 공개 상태를 확인해 주세요.')
+        with write_transaction():
+            post = db.get_or_404(BoardPost, post_id)
+            post.is_hidden = visibility == 'hide'
+            event(f'admin:{current_user.id}', 'board_post_visibility', post_id, visibility)
+            category = post.category
+        flash('게시글을 숨겼습니다.' if visibility == 'hide' else '게시글을 다시 공개했습니다.')
+        return redirect(url_for('admin_posts', category=category))
 
     @app.route('/admin/posts/new', methods=['GET', 'POST'])
     @admin_required

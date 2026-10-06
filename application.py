@@ -58,7 +58,7 @@ def create_app(test_config=None):
     def board_form_size():
         # CSRFProtect parses request.form before the view function, so enlarge
         # the limit before its hook only for staff post forms.
-        if request.endpoint in {'admin_post_new', 'admin_post_edit'}:
+        if request.endpoint in {'admin_post_new', 'admin_post_edit', 'admin_popup'}:
             request.max_content_length = 32 * 1024 * 1024
 
     CSRFProtect(app)
@@ -142,10 +142,12 @@ def create_app(test_config=None):
 
     from routes import register_routes
     from board_routes import register_board_routes
+    from popup_routes import register_popup_routes
     from admin_stats import register_stats_routes
     from commands import register_commands
     register_routes(app)
     register_board_routes(app)
+    register_popup_routes(app)
     register_stats_routes(app)
     register_commands(app)
     return app

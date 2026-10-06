@@ -1,0 +1,44 @@
+{% extends 'layout.html' %}{% from '_forms.html' import csrf %}
+{% block title %}메인 팝업 관리 | Philips Evnia Esports Lab{% endblock %}
+{% block content %}
+<div class="popup-page-heading"><h1>메인 팝업 관리</h1><p>메인 페이지에 팝업 한 건을 표시합니다. 저장한 팝업은 아래 기록에서 다시 게시할 수 있습니다.</p></div>
+<form class="card popup-editor" method="post" enctype="multipart/form-data" action="{{ url_for('admin_popup') }}" data-has-image="{{ '1' if current and current.image_path else '0' }}" novalidate>
+    {{ csrf() }}
+    <label class="form-group" for="popup-enabled">표시 상태</label>
+    <select class="form-control" id="popup-enabled" name="enabled"><option value="0" {{ 'selected' if not draft.enabled }}>저장만 하고 숨김</option><option value="1" {{ 'selected' if draft.enabled }}>메인 페이지에 표시</option></select>
+    <fieldset class="popup-editor-modes"><legend>내용 선택</legend>
+        <label><input type="radio" name="mode" value="notice" {{ 'checked' if draft.mode == 'notice' }}> 기존 공지사항 연결</label>
+        <label><input type="radio" name="mode" value="custom" {{ 'checked' if draft.mode == 'custom' }}> 사진·텍스트 직접 작성</label>
+        <p class="field-error" data-error-for="mode" role="alert">{{ errors.get('mode', '') }}</p>
+    </fieldset>
+    <div class="popup-editor-section" data-popup-mode="notice">
+        <label class="form-group" for="popup-notice">연결할 공지사항</label>
+        <select class="form-control" id="popup-notice" name="notice_id" aria-invalid="{{ 'true' if errors.get('notice_id') else 'false' }}"><option value="">공지사항 선택</option>{% for post in notices %}<option value="{{ post.id }}" {{ 'selected' if draft.notice_id == post.id|string }}>{{ post.title }} ({{ post.created_at|kst_date }})</option>{% endfor %}</select>
+        <p class="field-error" data-error-for="notice_id" role="alert">{{ errors.get('notice_id', '') }}</p>
+        <p class="help-text">공지 본문과 첫 번째 사진이 팝업에 표시됩니다. 숨김 처리한 공지사항은 연결할 수 없습니다.</p>
+        <a href="{{ url_for('admin_posts', category='notice') }}">공지사항 관리</a>
+    </div>
+    <div class="popup-editor-section" data-popup-mode="custom">
+        <label class="form-group" for="popup-title">제목 (선택)</label>
+        <input class="form-control" id="popup-title" name="title" maxlength="120" value="{{ draft.title }}" aria-invalid="{{ 'true' if errors.get('title') else 'false' }}"><p class="field-error" data-error-for="title" role="alert">{{ errors.get('title', '') }}</p>
+        <label class="form-group" for="popup-body">본문 (사진만 표시할 경우 비워둘 수 있음)</label>
+        <textarea class="form-control" id="popup-body" name="body" maxlength="3000" rows="7" aria-invalid="{{ 'true' if errors.get('body') else 'false' }}">{{ draft.body }}</textarea><p class="field-error" data-error-for="body" role="alert">{{ errors.get('body', '') }}</p>
+        <label class="form-group" for="popup-image">사진 추가·교체</label>
+        <input class="form-control" id="popup-image" name="image" type="file" accept="image/jpeg,image/png,image/webp" aria-invalid="{{ 'true' if errors.get('image') else 'false' }}"><p class="field-error" data-error-for="image" role="alert">{{ errors.get('image', '') }}</p>
+        <p class="help-text">모바일 권장 크기: 정사각형 1080×1080px 또는 세로형 1080×1350px. 중요한 글자와 얼굴은 가장자리에서 10% 이상 안쪽에 배치해 주세요. 사진은 화면에 맞춰 비율을 유지해 표시합니다. JPG·PNG·WebP, 5MB 이하.</p>
+        <label class="form-group" for="popup-image-alt">사진 설명 (사진 사용 시 필수)</label>
+        <input class="form-control" id="popup-image-alt" name="image_alt" maxlength="160" value="{{ draft.image_alt }}" aria-invalid="{{ 'true' if errors.get('image_alt') else 'false' }}"><p class="field-error" data-error-for="image_alt" role="alert">{{ errors.get('image_alt', '') }}</p>
+        {% if current and current.image_path %}<div class="popup-editor-current-image"><img src="{{ url_for('admin_popup_history_image', entry_id=current.id) }}" alt="{{ current.image_alt }}"><label><input type="checkbox" name="remove_image" value="1" {{ 'checked' if draft.remove_image }}> 현재 사진 제외</label></div>{% endif %}
+        <p class="help-text">본문만 또는 사진만 등록할 수 있습니다. 본문은 일반 텍스트로 표시합니다.</p>
+    </div>
+    <div class="popup-editor-actions"><button class="btn btn-primary" type="submit">팝업 저장</button><a href="{{ url_for('home') }}">메인 페이지에서 확인</a></div>
+</form>
+<section class="popup-history" aria-labelledby="popup-history-title"><div class="popup-history-heading"><h2 id="popup-history-title">이전 팝업</h2>{% if entries|selectattr('is_active')|list %}<form method="post" action="{{ url_for('admin_popup_hide') }}">{{ csrf() }}<button class="btn btn-secondary">현재 팝업 숨김</button></form>{% endif %}</div>
+    {% if entries %}<div class="popup-history-list">{% for entry in entries %}<article class="popup-history-item">
+        {% if entry.mode == 'custom' and entry.image_path %}<img src="{{ url_for('admin_popup_history_image', entry_id=entry.id) }}" alt="{{ entry.image_alt }}" loading="lazy">{% endif %}
+        <div><span class="popup-history-meta">{{ entry.created_at|kst_date }} · {{ '공지사항 연결' if entry.mode == 'notice' else '직접 작성' }}</span>{% if entry.is_active %}<strong class="popup-history-status">현재 표시 중</strong>{% else %}<span class="popup-history-status">숨김</span>{% endif %}
+        {% if entry.mode == 'notice' %}{% set notice = entry.notice_id and notices|selectattr('id', 'equalto', entry.notice_id)|first %}<h3>{{ notice.title if notice else '연결한 공지사항이 삭제되거나 숨겨졌습니다' }}</h3>{% else %}<h3>{{ entry.title or '제목 없음' }}</h3>{% if entry.body %}<p>{{ entry.body|truncate(110) }}</p>{% endif %}{% endif %}</div>
+        {% if not entry.is_active %}<form method="post" action="{{ url_for('admin_popup_activate', entry_id=entry.id) }}">{{ csrf() }}<button class="btn btn-secondary">다시 게시</button></form>{% endif %}
+    </article>{% endfor %}</div>{% else %}<p class="board-empty">게시한 팝업이 없습니다.</p>{% endif %}
+</section>
+{% endblock %}
