@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import inspect
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from models import Admin, AuditEvent, BlockedTime, DailyBooking, RecurringBlock, Reservation, ReservationSlot, Student, db, utcnow
+from models import Admin, AuditEvent, BlockedTime, DailyBooking, RecurringBlock, Reservation, ReservationSlot, Setting, Student, db, utcnow
 from conftest import PASSWORD, booking, csrf, login, post, reserve
 
 
@@ -363,6 +363,23 @@ def test_visit_state_guards_and_audit(app):
         assert db.session.scalar(db.select(db.func.count()).select_from(AuditEvent).where(AuditEvent.action=='check_in')) == 1
 
 
+def test_check_in_opens_ten_minutes_before_start_and_closes_at_end(app):
+    student, admin = login(app), login(app, admin=True)
+    identifier = reserve(student, date='2026-09-14')
+    path = f'/admin/attend/{identifier}'
+    app.config['NOW_PROVIDER'] = lambda: datetime(2026, 9, 14, 9, 49, 59, tzinfo=ZoneInfo('Asia/Seoul'))
+    assert f'action="{path}"' not in admin.get('/admin').get_data(as_text=True)
+    assert post(admin, path, {'card_checked': '1'}).status_code == 409
+    app.config['NOW_PROVIDER'] = lambda: datetime(2026, 9, 14, 9, 50, tzinfo=ZoneInfo('Asia/Seoul'))
+    assert f'action="{path}"' in admin.get('/admin').get_data(as_text=True)
+    assert post(student, path, {'card_checked': '1'}).status_code == 403
+    assert post(admin, path).status_code == 400
+    assert post(admin, path, {'card_checked': '1'}).status_code == 302
+    assert post(admin, f'/admin/no-show/{identifier}', {'reason': 'Already visited'}).status_code == 409
+    app.config['NOW_PROVIDER'] = lambda: datetime(2026, 9, 14, 12, tzinfo=ZoneInfo('Asia/Seoul'))
+    assert post(admin, path, {'card_checked': '1'}).status_code == 409
+
+
 def test_student_cancel_window_after_start(app):
     student = login(app)
     identifier = reserve(student, date='2026-09-14', start_time='10:00', end_time='11:00')
@@ -397,36 +414,143 @@ def test_missed_checkin_does_not_auto_ban(app):
     reserve(student,date='2026-09-16')
     dashboard = admin.get('/admin?date=2026-09-14').get_data(as_text=True)
     assert f'action="/admin/no-show/{identifier}"' in dashboard
-    assert '노쇼 확정' in dashboard
+    assert '미방문(No-show)' in dashboard
+    with app.app_context():
+        assert db.session.get(Student, 1).blocked_until is None
     assert post(admin,f'/admin/no-show/{identifier}',{'reason':'Test confirmed absence'}).status_code == 302
     with app.app_context():
         assert db.session.get(Reservation,identifier).status == 'no_show'
-        assert db.session.get(Student,1).blocked_until is None
+        assert db.session.get(Student,1).blocked_until == datetime(2026, 9, 21, 23)
+        # Existing bookings are cancelled, with their history preserved.
+        assert db.session.scalar(db.select(Reservation).where(Reservation.date == '2026-09-16')).status == 'cancelled'
 
 
-def test_no_show_opens_after_15_minutes_and_releases_seat_only(app):
+def test_no_show_opens_at_start_and_suspends_for_seven_days(app, monkeypatch):
     student, admin = login(app), login(app, admin=True)
     identifier = reserve(student)
     path = f'/admin/no-show/{identifier}'
-    app.config['NOW_PROVIDER'] = lambda: datetime(2026, 9, 15, 10, 14, tzinfo=ZoneInfo('Asia/Seoul'))
+    app.config['NOW_PROVIDER'] = lambda: datetime(2026, 9, 15, 9, 59, 59, tzinfo=ZoneInfo('Asia/Seoul'))
     before = admin.get('/admin?date=2026-09-15').get_data(as_text=True)
     assert '학생증 확인 후 방문확인을 눌러주세요' in before
     assert '예약 취소</summary>' not in before
-    assert '예약 시작 15분 후 노쇼를 확정할 수 있습니다.' in before
+    assert '예약 시작 시각부터 처리할 수 있습니다.' in before
     assert post(admin, path, {'reason': '미방문 확인'}).status_code == 409
 
-    app.config['NOW_PROVIDER'] = lambda: datetime(2026, 9, 15, 10, 15, tzinfo=ZoneInfo('Asia/Seoul'))
+    app.config['NOW_PROVIDER'] = lambda: datetime(2026, 9, 15, 10, tzinfo=ZoneInfo('Asia/Seoul'))
+    processed_at = datetime(2026, 9, 15, 1)  # UTC, corresponding to 10:00 KST
+    monkeypatch.setattr('routes.utcnow', lambda: processed_at)
+    monkeypatch.setattr('booking.utcnow', lambda: processed_at)
     assert post(student, path, {'reason': '미방문 확인'}).status_code == 403
+    assert post(admin, path).status_code == 400
     assert post(admin, path, {'reason': '미방문 확인'}).status_code == 302
+    assert post(admin, path, {'reason': 'Repeated'}).status_code == 409
     with app.app_context():
         assert db.session.get(Reservation, identifier).status == 'no_show'
+        assert db.session.get(Student, 1).blocked_until == processed_at + timedelta(days=7)
         assert db.session.scalar(db.select(db.func.count()).select_from(ReservationSlot).where(
             ReservationSlot.reservation_id == identifier)) == 0
         assert db.session.scalar(db.select(db.func.count()).select_from(DailyBooking).where(
             DailyBooking.reservation_id == identifier)) == 1
     other = login(app, student=2)
     assert post(other, '/api/reserve', json=booking(start_time='10:30', end_time='11:00')).status_code == 201
-    assert post(student, '/api/reserve', json=booking(start_time='11:00', end_time='11:30', seat_number=2)).status_code == 409
+    assert post(student, '/api/reserve', json=booking(date='2026-09-16', seat_number=2)).status_code == 403
+    assert student.get('/api/availability', query_string=booking(date='2026-09-16')).status_code == 403
+    # The restriction expires exactly seven days after processing, without admin action.
+    monkeypatch.setattr('booking.utcnow', lambda: processed_at + timedelta(days=7))
+    app.config['NOW_PROVIDER'] = lambda: datetime(2026, 9, 22, 10, tzinfo=ZoneInfo('Asia/Seoul'))
+    assert post(student, '/api/reserve', json=booking(date='2026-09-23')).status_code == 201
+
+
+def test_no_show_does_not_shorten_longer_existing_restriction(app):
+    student, admin = login(app), login(app, admin=True)
+    identifier = reserve(student)
+    until = utcnow() + timedelta(days=14)
+    with app.app_context():
+        db.session.get(Student, 1).blocked_until = until
+        db.session.commit()
+    app.config['NOW_PROVIDER'] = lambda: datetime(2026, 9, 15, 10, tzinfo=ZoneInfo('Asia/Seoul'))
+    assert post(admin, f'/admin/no-show/{identifier}', {'reason': 'Absent'}).status_code == 302
+    with app.app_context():
+        assert db.session.get(Student, 1).blocked_until == until
+
+
+@pytest.mark.parametrize('day,start,end,cancelled', [
+    ('2026-09-16', '10:00', '11:00', True),
+    ('2026-09-22', '09:30', '10:30', True),
+    ('2026-09-22', '10:00', '11:00', False),
+])
+def test_no_show_cancels_unattended_bookings_in_restricted_period(app, day, start, end, cancelled):
+    student, admin = login(app), login(app, admin=True)
+    missed = reserve(student)
+    with app.app_context():
+        db.session.scalar(db.select(Setting).where(Setting.key == 'advance_days')).value = '14'
+        db.session.commit()
+    existing = reserve(student, date=day, start_time=start, end_time=end)
+    app.config['NOW_PROVIDER'] = lambda: datetime(2026, 9, 15, 10, tzinfo=ZoneInfo('Asia/Seoul'))
+    assert post(admin, f'/admin/no-show/{missed}', {'reason': 'Absent'}).status_code == 302
+    with app.app_context():
+        assert db.session.get(Reservation, existing).status == ('cancelled' if cancelled else 'active')
+        slots = db.session.scalar(db.select(db.func.count()).select_from(ReservationSlot).where(
+            ReservationSlot.reservation_id == existing))
+        daily = db.session.scalar(db.select(db.func.count()).select_from(DailyBooking).where(
+            DailyBooking.reservation_id == existing))
+        assert (slots == 0) == cancelled and daily == (0 if cancelled else 1)
+        audit = db.session.scalar(db.select(AuditEvent).where(AuditEvent.action == 'cancel_for_no_show'))
+        assert (audit is not None) == cancelled
+        if cancelled:
+            assert db.session.get(Reservation, existing).cancelled_at == datetime(2026, 9, 15, 1)
+    # A cancellation releases the chair for another student.
+    if cancelled:
+        other = login(app, student=2)
+        reserve(other, date=day, start_time=start, end_time=end)
+
+
+def test_no_show_does_not_end_checked_in_or_cancel_another_student_booking(app):
+    student, admin = login(app), login(app, admin=True)
+    missed = reserve(student)
+    attended = reserve(student, date='2026-09-16')
+    other = reserve(login(app, student=2), date='2026-09-16', seat_number=2)
+    app.config['NOW_PROVIDER'] = lambda: datetime(2026, 9, 16, 10, tzinfo=ZoneInfo('Asia/Seoul'))
+    assert post(admin, f'/admin/attend/{attended}', {'card_checked': '1'}).status_code == 302
+    assert post(admin, f'/admin/no-show/{missed}', {'reason': 'Past booking reviewed'}).status_code == 302
+    with app.app_context():
+        for identifier in (attended, other):
+            assert db.session.get(Reservation, identifier).status == 'active'
+            assert db.session.scalar(db.select(db.func.count()).select_from(ReservationSlot).where(
+                ReservationSlot.reservation_id == identifier)) > 0
+
+
+def test_restore_account_preserves_identity_restrictions_and_cancelled_reservations(app):
+    student, admin = login(app), login(app, admin=True)
+    identifier = reserve(student)
+    until = utcnow() + timedelta(days=14)
+    with app.app_context():
+        db.session.get(Student, 1).blocked_until = until
+        db.session.commit()
+    assert post(admin, '/admin/students/delete/1').status_code == 302
+    assert '계정 복구' in admin.get('/admin/students').get_data(as_text=True)
+    path = '/admin/students/restore/1'
+    assert app.test_client().get(path).status_code == 405
+    assert post(login(app, student=2), path, {'reason': 'Unauthorized'}).status_code == 403
+    assert post(app.test_client(), path, {'reason': 'Anonymous'}).status_code == 302
+    assert post(admin, path).status_code == 400
+    assert post(admin, path, {'reason': 'x' * 201}).status_code == 400
+    assert post(admin, path, {'reason': 'Accidental deactivation'}).status_code == 302
+    assert post(admin, path, {'reason': 'Repeated'}).status_code == 302
+    with app.app_context():
+        user = db.session.get(Student, 1)
+        assert not user.archived and user.session_version == 3
+        assert user.student_number == '202600001' and user.blocked_until == until
+        assert db.session.get(Reservation, identifier).status == 'cancelled'
+        assert db.session.scalar(db.select(db.func.count()).select_from(ReservationSlot)) == 0
+        events = db.session.scalars(db.select(AuditEvent).where(AuditEvent.action == 'restore_student')).all()
+        assert len(events) == 1 and events[0].reason == 'Accidental deactivation'
+    assert student.get('/my/reservations').status_code == 302  # revoked old session remains invalid
+    restored = login(app)
+    assert restored.get('/my/reservations').status_code == 200
+    assert post(restored, '/api/reserve', json=booking(date='2026-09-16')).status_code == 403
+    assert post(admin, '/admin/students/block/1', {'duration': 'unblock'}).status_code == 302
+    assert post(restored, '/api/reserve', json=booking()).status_code == 201
 
 
 def test_department_policy_filters_new_bookings_without_changing_existing_reservations(app):
@@ -489,10 +613,10 @@ def test_department_priority_extends_booking_window_for_provisional_members(app)
         'departments': ['글로벌스포츠산업학부'], 'priority_advance_days': '14'}).status_code == 302
     assert 'max="2026-09-28"' in global_student.get('/reserve').get_data(as_text=True)
     assert 'max="2026-09-21"' in other.get('/reserve').get_data(as_text=True)
-    assert other.get('/api/availability', query_string=booking(date='2026-09-25')).status_code == 400
-    assert global_student.get('/api/availability', query_string=booking(date='2026-09-25')).status_code == 200
-    assert post(other, '/api/reserve', json=booking(date='2026-09-25')).status_code == 400
-    assert post(global_student, '/api/reserve', json=booking(date='2026-09-25')).status_code == 201
+    assert other.get('/api/availability', query_string=booking(date='2026-09-23')).status_code == 400
+    assert global_student.get('/api/availability', query_string=booking(date='2026-09-23')).status_code == 200
+    assert post(other, '/api/reserve', json=booking(date='2026-09-23')).status_code == 400
+    assert post(global_student, '/api/reserve', json=booking(date='2026-09-23')).status_code == 201
 
 
 def test_card_check_automatically_verifies_member_and_profile_change_resets_it(app):

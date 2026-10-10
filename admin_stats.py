@@ -13,7 +13,7 @@ from models import Reservation, Student, db
 
 
 STATUS_LABELS = {'active': '예약 완료/이용 중', 'completed': '이용 완료',
-                 'cancelled': '취소', 'no_show': '노쇼 확정'}
+                 'cancelled': '취소', 'no_show': '미방문(No-show)'}
 STATUS_COLORS = ('#2474aa', '#23a6b8', '#91aabb', '#c96c71')
 
 

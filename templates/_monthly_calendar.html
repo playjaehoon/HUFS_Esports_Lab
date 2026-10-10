@@ -1,0 +1,21 @@
+<section class="home-section lab-calendar" id="lab-calendar" aria-labelledby="calendar-title" data-lab-calendar data-month="{{ '%04d-%02d'|format(calendar.year, calendar.month) }}">
+    <div class="home-section-heading"><h2 id="calendar-title">실습실 일정</h2></div>
+    <div class="calendar-toolbar"><div class="calendar-month-controls"><a {% if calendar.previous %}href="{{ url_for('home', month=calendar.previous) }}#lab-calendar"{% else %}aria-disabled="true" tabindex="-1"{% endif %} data-calendar-month="{{ calendar.previous or '' }}" aria-label="이전 달"><span aria-hidden="true">‹</span></a><strong data-month-title>{{ calendar.year }}년 {{ calendar.month }}월</strong><a {% if calendar.following %}href="{{ url_for('home', month=calendar.following) }}#lab-calendar"{% else %}aria-disabled="true" tabindex="-1"{% endif %} data-calendar-month="{{ calendar.following or '' }}" aria-label="다음 달"><span aria-hidden="true">›</span></a></div><a href="{{ url_for('home') }}#lab-calendar" class="calendar-today-link" data-calendar-today>오늘</a></div>
+    <div class="calendar-layout">
+        <div><div class="calendar-weekdays" aria-hidden="true">{% for name in ['일','월','화','수','목','금','토'] %}<span>{{ name }}</span>{% endfor %}</div>
+        <div class="calendar-grid" data-calendar-grid aria-label="월간 날짜">
+        {% for week in calendar.weeks %}{% for day in week %}{% if day %}
+        <button type="button" class="calendar-day {{ 'is-closed' if day.closed else 'is-open' }} {{ 'is-today' if day.date == today else '' }}" data-date="{{ day.date }}" aria-pressed="{{ 'true' if day.date == selected_day.date else 'false' }}" aria-label="{{ day.date }} {{ day.weekday }}요일, {{ day.hours }}{% if day.events %}, 일정 {{ day.events|length }}건{% endif %}"><span class="calendar-day-number">{{ day.date[-2:]|int }}</span>{% if day.closed %}<span class="calendar-day-label">휴관</span>{% endif %}{% if day.events %}<span class="calendar-event-mark">{{ day.events[0].label }}{% if day.events|length > 1 %} +{{ day.events|length - 1 }}{% endif %}</span>{% endif %}</button>
+        {% else %}<span class="calendar-day-blank" aria-hidden="true"></span>{% endif %}{% endfor %}{% endfor %}</div></div>
+        <section class="calendar-day-detail" aria-labelledby="calendar-day-title" aria-live="polite">
+            <h3 id="calendar-day-title" tabindex="-1">{{ selected_day.date }} ({{ selected_day.weekday }})</h3>
+            <p class="calendar-detail-hours"><span>운영시간</span><strong data-calendar-hours>{{ selected_day.hours }}</strong></p>
+            <p class="help-text" data-calendar-reason>{{ selected_day.closed_reason }}</p>
+            <ul class="calendar-event-list" data-calendar-events {% if not selected_day.events %}hidden{% endif %}>{% for item in selected_day.events %}<li data-kind="{{ item.kind }}"><span class="calendar-event-time">{{ item.time }}</span><strong>{{ item.display_title }}{% if item.display_title != item.label %}<small class="calendar-event-kind">{{ item.label }}</small>{% endif %}</strong>{% if not item.blocks %}<small>안내 행사 · 이 일정으로는 예약을 차단하지 않습니다.</small>{% endif %}</li>{% endfor %}</ul>
+        </section>
+    </div>
+    <p class="form-error" data-calendar-error role="status"></p>
+    <noscript><p>날짜별 일정</p>{% for day in calendar.days %}<details><summary>{{ day.date }} · {{ day.hours }}</summary>{% for item in day.events %}<p>{{ item.time }} · {{ item.title }}</p>{% endfor %}</details>{% endfor %}</noscript>
+    <script type="application/json" data-calendar-data>{{ calendar|tojson }}</script>
+</section>
+<script src="{{ url_for('static', filename='js/lab-calendar.js', v='20261010-schedule-inline') }}" defer></script>

@@ -1,0 +1,7 @@
+<section class="lab-operating-strip" aria-label="오늘 실습실 운영" data-lab-status data-state="{{ lab_status.state }}">
+    <div class="lab-status-heading"><span class="lab-status-dot status-{{ lab_status.state }}" data-status-dot aria-hidden="true"></span><strong data-status-label>{{ lab_status.label }}</strong></div>
+    <div class="lab-status-hours"><span>운영시간</span><strong data-status-hours>{{ lab_status.hours }}</strong></div>
+    <a href="#lab-calendar">월간 일정 <span aria-hidden="true">↗</span></a>
+    <small data-status-booking {% if lab_status.reservation_open %}hidden{% endif %}>신규 예약 접수 중지</small>
+    <small class="lab-status-updated" data-status-updated>{{ lab_status.checked_label }}</small>
+</section>

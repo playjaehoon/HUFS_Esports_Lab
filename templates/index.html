@@ -4,7 +4,7 @@
 {% if booking_denial %}<p class="notice-banner" role="alert">{{ booking_denial }} 기존 예약은 <a href="{{ url_for('my_reservations') }}">내 예약</a>에서 확인할 수 있습니다.</p>{% else %}
 {% if current_user.must_change_password and not session.get('password_change_skipped') %}<div class="notice-banner" role="status"><p>기존 비밀번호를 사용 중입니다. 내 정보에서 숫자 6자리로 변경하거나 이번 로그인에서 건너뛸 수 있습니다. 다음 로그인 때 다시 안내합니다.</p><div class="inline-form"><a class="btn btn-secondary" href="{{ url_for('account') }}">비밀번호 변경</a><form method="post" action="{{ url_for('skip_password_change') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-secondary" type="submit">나중에 하기</button></form></div></div>{% endif %}
 {% if notice %}<p class="notice-banner">{{ notice }}</p>{% endif %}
-<form id="reservationForm" class="reservation-layout" data-seats="{{ seats|list|tojson }}" data-max-hours="{{ policy.max_hours }}" data-close-minute="{{ policy.close_hour * 60 }}" data-server-date="{{ today }}" data-server-minute="{{ server_minute }}">
+<form id="reservationForm" class="reservation-layout" data-seats="{{ seats|list|tojson }}" data-seat-groups='{{ seat_groups|tojson }}' data-max-hours="{{ policy.max_hours }}" data-close-minute="{{ policy.close_hour * 60 }}" data-server-now="{{ server_now }}" data-grace-minutes="{{ booking_grace_minutes }}">
 <section class="card"><h2 class="section-title">1. 날짜 &amp; 시간 선택</h2>
 <div class="form-group"><label for="res_date">예약 날짜 (한국 시간)</label><input type="date" id="res_date" class="form-control" min="{{ today }}" max="{{ last_date }}" required></div>
 {% if booking_window_days > policy.advance_days %}<p class="help-text">{{ student.department }} 선예약: 오늘부터 {{ booking_window_days }}일까지 선택할 수 있습니다. 일반 예약은 {{ policy.advance_days }}일까지입니다.</p>{% endif %}
@@ -14,6 +14,7 @@
 <p id="timeError" class="field-error" role="alert" aria-live="polite"></p>
 <p id="endTimePreview" class="time-preview" aria-live="polite">이용 시간을 선택하면 종료 시간을 보여드립니다.</p>
 <p class="help-text">운영 {{ policy.open_hour }}–{{ policy.close_hour }}시 · 최대 {{ policy.max_hours }}시간 · 하루 1건<br>예약 시작 전 또는 예약 후 5분 이내에 취소할 수 있습니다.</p>
+<p class="help-text">빈 좌석은 시작 시각부터 {{ booking_grace_minutes }}분까지 예약할 수 있습니다. 종료 시간은 그대로 유지됩니다.</p>
 </section>
 <section class="card seat-selection-card"><h2 class="section-title">2. 좌석 선택</h2>
 <div class="seat-zone-legend" aria-label="좌석 구역 안내">
@@ -45,6 +46,6 @@
 <p id="bookingError" role="alert"></p>
 <p class="privacy-note">예약 운영과 부정 이용 확인을 위해 예약 시 접속 IP 주소를 기록합니다. 운영진만 열람하며, 기관의 보관 기준에 따라 폐기합니다.</p>
 </section>
-</form><script src="{{ url_for('static', filename='js/main.js', v='20261006-department') }}" defer></script>
+</form><script src="{{ url_for('static', filename='js/main.js', v='20261010-grace') }}" defer></script>
 {% endif %}
 {% endblock %}

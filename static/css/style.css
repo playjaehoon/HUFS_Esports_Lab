@@ -483,6 +483,24 @@ a { color: var(--primary-color); }
 .admin-reservation { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding: 1.3rem 0; border-bottom: 1px solid var(--border-color); }
 .admin-reservation h3 { margin: .5rem 0; }
 .admin-actions { min-width: 220px; max-width: 360px; }
+.admin-seat-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.5rem; align-items: start; }
+.admin-seat-layout > * { min-width: 0; }
+.admin-seat-legend { display: flex; flex-wrap: wrap; gap: .75rem 1.25rem; margin: 1rem 0; font-size: .85rem; }
+.admin-seat-legend span { display: inline-flex; align-items: center; gap: .4rem; }
+.admin-seat-legend i { width: 16px; height: 16px; border: 1px solid #72899b; }
+.admin-seat-overview .map-empty { background: #fff; color: #173f5b; border-color: #9aafbf; }
+.admin-seat-overview .map-reserved { background: #bce8ef; color: #075b6c; border-color: #3298ac; }
+.admin-seat-overview .map-blocked { background: repeating-linear-gradient(45deg, #e4e9ef, #e4e9ef 5px, #cbd4df 5px, #cbd4df 10px); color: #334c61; border-color: #8393a4; }
+.admin-map-seat[aria-pressed="true"] { outline: 3px solid #002c5f; outline-offset: 3px; }
+.admin-seat-panel[hidden] { display: none; }
+.admin-seat-panel h3 { color: #002c5f; margin: 0 0 1rem; scroll-margin-top: 1rem; }
+.admin-seat-panel h4 { margin: 1rem 0 .5rem; }
+.admin-seat-booking { border-bottom: 1px solid #d5e0e6; padding: .8rem 0; overflow-wrap: anywhere; }
+.admin-seat-booking .status-badge { margin: .25rem .5rem; }
+.admin-seat-booking p { margin: .5rem 0; }
+.admin-seat-blocks { padding-left: 1.2rem; overflow-wrap: anywhere; }
+.admin-seat-blocks li { margin: .6rem 0; }
+@media(max-width:900px) { .admin-seat-layout { grid-template-columns: minmax(0, 1fr); } }
 .admin-actions form { margin: .7rem 0; }
 .no-show-action { border-top: 1px solid var(--border-color); padding-top: .75rem; }
 .no-show-action label { display: block; font-size: .85rem; }
@@ -760,6 +778,101 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px soli
     .hero-content h1 { margin-left: 1rem; margin-right: 1rem; }
     .hero-actions { padding-left: .8rem; padding-right: .8rem; gap: .5rem; }
     .hero-cta { padding: .7rem .65rem; }
+}
+
+/* Today opening information and the public monthly timetable. */
+/* Pretendard v1.3.9, SIL OFL 1.1; license in static/fonts. */
+@font-face { font-family: 'Lab Calendar'; src: url('../fonts/Pretendard-Regular.subset.woff2') format('woff2'); font-style: normal; font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Lab Calendar'; src: url('../fonts/Pretendard-SemiBold.subset.woff2') format('woff2'); font-style: normal; font-weight: 600; font-display: swap; }
+@font-face { font-family: 'Lab Calendar'; src: url('../fonts/Pretendard-Bold.subset.woff2') format('woff2'); font-style: normal; font-weight: 700; font-display: swap; }
+.lab-calendar { font-family: 'Lab Calendar', 'Malgun Gothic', sans-serif; font-synthesis: none; line-height: 1.5; }
+.home-page .home-section-heading h2 { font-family: 'Lab Calendar', 'Malgun Gothic', sans-serif; font-weight: 700; font-synthesis: none; }
+.lab-calendar h2, .lab-calendar h3, .lab-calendar strong { font-weight: 700; }
+.lab-operating-strip { max-width: 1326px; margin: 1rem auto 0; padding: 1.2rem 1.4rem; display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: .5rem 2rem; border: 0; border-radius: 6px; background: #edf2f6; color: #173f5b; }
+.lab-operating-strip[data-state="open"] { background: #e7f4ef; }
+.lab-status-heading { display: flex; align-items: baseline; gap: .6rem; min-width: 0; }
+.lab-status-heading strong { font-size: 1.08rem; font-weight: 700; color: #173f5b; word-break: keep-all; overflow-wrap: anywhere; }
+.lab-status-dot.status-open + strong { color: #126e5c; }
+.lab-status-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: #7e8a95; }
+.lab-status-dot.status-open { background: #16856f; }
+.lab-status-dot.status-paused { background: #7e8a95; }
+.lab-status-hours { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .8rem; }
+.lab-status-hours > span, .lab-status-updated { font-size: .78rem; color: #637483; }
+.lab-operating-strip > a { grid-column: 3; grid-row: 1 / 3; align-self: center; font-size: .86rem; font-weight: 600; white-space: nowrap; }
+.lab-status-updated { grid-column: 1 / 3; }
+.lab-operating-strip > [data-status-booking] { grid-column: 1 / -1; color: #a64035; }
+.calendar-toolbar { display: flex; align-items: center; justify-content: center; position: relative; margin: 0 0 1.4rem; min-height: 44px; }
+.calendar-month-controls { display: flex; align-items: center; gap: 1.6rem; }
+.calendar-month-controls strong { font-size: 1.45rem; font-weight: 700; color: var(--primary-color); letter-spacing: -.04em; }
+.calendar-month-controls > a { display: inline-flex; width: 40px; height: 40px; justify-content: center; align-items: center; border: 1px solid #dce4e9; border-radius: 50%; font-size: 1.75rem; line-height: 1; color: #204c6c; text-decoration: none; }
+.calendar-month-controls > a:hover { background: #eff5f8; }
+.calendar-month-controls > a[aria-disabled="true"] { opacity: .3; cursor: default; }
+.calendar-today-link { position: absolute; right: 0; padding: .5rem .8rem; border: 1px solid #dce4e9; border-radius: 4px; font-size: .85rem; text-decoration: none; }
+.calendar-layout { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr); gap: 2rem; }
+.calendar-weekdays, .calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0,1fr)); }
+.calendar-weekdays { background: #f3f6f8; }
+.calendar-weekdays > span { padding: .8rem 0; text-align: center; font-size: .875rem; color: #526776; font-weight: 600; }
+.calendar-weekdays > span:first-child { color: #ad5551; }
+.calendar-weekdays > span:last-child { color: #497493; }
+.calendar-grid { border-left: 1px solid #e4eaee; }
+.calendar-day, .calendar-day-blank { min-width: 0; min-height: 102px; border: 0; border-right: 1px solid #e4eaee; border-bottom: 1px solid #e4eaee; background: #fff; padding: .6rem .45rem; text-align: center; display: flex; flex-direction: column; align-items: center; gap: .25rem; color: #173f5b; }
+.calendar-day { cursor: pointer; font-family: inherit; }
+.calendar-day.is-closed { background: #fafbfc; color: #875f5d; }
+.calendar-day.is-today .calendar-day-number { box-shadow: inset 0 0 0 1px #00366e; }
+.calendar-day[aria-pressed="true"] { background: #eef6f8; }
+.calendar-day[aria-pressed="true"] .calendar-day-number { background: #00366e; color: #fff; }
+.calendar-day:focus-visible { outline: 2px solid #13798a; outline-offset: -2px; }
+.calendar-day-number { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; font-size: 1.0625rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.calendar-day-label { font-size: .75rem; }
+.calendar-event-mark { display: block; max-width: 100%; color: #127681; font-size: .75rem; line-height: 1.4; word-break: keep-all; }
+.calendar-day-detail { min-width: 0; padding: .25rem 0 0 1rem; align-self: start; }
+.calendar-day-detail h3 { font-size: 1.1875rem; margin: 0 0 1.5rem; color: #183c56; letter-spacing: -.015em; font-variant-numeric: tabular-nums; }
+.calendar-detail-hours { display: flex; flex-direction: column; gap: .35rem; margin: .6rem 0; }
+.calendar-detail-hours > span { font-size: .875rem; color: #526776; }
+.calendar-detail-hours strong { font-size: 1.375rem; line-height: 1.5; color: #173f5b; }
+.calendar-day-detail [data-calendar-reason] { font-size: .9375rem; color: #526776; margin: .75rem 0 0; }
+.calendar-day-detail [data-calendar-reason]:empty { display: none; }
+.calendar-event-list { padding: 0; margin-bottom: 0; list-style: none; }
+.calendar-event-list[hidden] { display: none; }
+.calendar-event-list li { padding: 1rem; margin-top: .7rem; border: 0; border-radius: 5px; background: #edf2f6; overflow-wrap: anywhere; display: grid; grid-template-columns: 8px max-content minmax(0,1fr); align-items: center; gap: .5rem .75rem; }
+.calendar-event-list li::before { content: ''; width: 8px; height: 8px; border-radius: 1px; background: #527da0; grid-column: 1; grid-row: 1; }
+.calendar-event-list li[data-kind="rental"]::before { background: #358976; }
+.calendar-event-list li[data-kind="event"]::before { background: #8870a4; }
+.calendar-event-list li[data-kind="closed"]::before { background: #94775e; }
+.calendar-event-list li[data-kind="class"] { background: #edf3fa; }
+.calendar-event-list li[data-kind="rental"] { background: #e8f4f1; }
+.calendar-event-list li[data-kind="event"] { background: #f2eef8; }
+.calendar-event-list li[data-kind="closed"] { background: #f4efeb; }
+.calendar-event-list .calendar-event-time { grid-column: 2; grid-row: 1; color: #173f5b; font-size: 1.0625rem; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.calendar-event-list strong { grid-column: 3; grid-row: 1; margin: 0; font-size: 1rem; min-width: 0; }
+.calendar-event-list li > small { grid-column: 2 / -1; color: #526776; font-size: .875rem; }
+.calendar-event-kind { display: block; color: #526776; font-size: .75rem; font-weight: 400; margin-top: .2rem; }
+.calendar-admin-item { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; border-bottom: 1px solid #d5e0e6; padding: 1rem 0; overflow-wrap: anywhere; }
+.calendar-weekday-choices { display: flex; gap: .8rem; flex-wrap: wrap; margin: 1rem 0; }
+.calendar-admin-error { border-left: 3px solid #bc3636; color: #b92c2c; background: #fff1f1; padding: 1rem; }
+.calendar-event-editor > .form-control { margin: .5rem 0 1rem; }
+.calendar-event-editor [data-calendar-time-fields][hidden] { display: none; }
+.admin-content-links a { display: inline-flex; align-items: center; min-height: 44px; max-width: 100%; line-height: 1.5; word-break: keep-all; }
+@media(max-width:1390px) { .lab-operating-strip { margin-left: 2rem; margin-right: 2rem; } }
+@media(max-width:800px) {
+    .calendar-layout { grid-template-columns: minmax(0,1fr); gap: 1rem; }
+    .lab-operating-strip { margin-left: 1.2rem; margin-right: 1.2rem; grid-template-columns: minmax(0,1fr) auto; gap: .45rem .7rem; padding: 1rem; }
+    .lab-status-heading { grid-column: 1 / -1; }
+    .lab-status-heading strong { font-size: 1rem; }
+    .lab-status-hours { grid-column: 1; grid-row: 2; }
+    .lab-status-hours strong { font-size: .9rem; }
+    .lab-operating-strip > a { grid-column: 2; grid-row: 2; }
+    .lab-status-updated { grid-column: 1 / -1; }
+    .calendar-month-controls { gap: .9rem; }
+    .calendar-month-controls strong { font-size: 1.2rem; }
+    .calendar-month-controls > a { width: 34px; height: 34px; }
+    .calendar-toolbar { justify-content: flex-start; margin-bottom: 1rem; }
+    .calendar-today-link { font-size: .75rem; padding: .4rem .6rem; }
+    .calendar-weekdays > span { padding: .65rem 0; }
+    .calendar-day, .calendar-day-blank { min-height: 84px; padding: .5rem .1rem; }
+    .calendar-day-number { font-size: 1rem; width: 28px; height: 28px; }
+    .calendar-day-label, .calendar-event-mark { font-size: .75rem; }
+    .calendar-day-detail { padding: 1.25rem 0 0; }
 }
 @media (prefers-reduced-motion: reduce) {
     .hero-track { transition: none; }
