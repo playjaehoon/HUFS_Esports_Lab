@@ -71,7 +71,7 @@ class Reservation(db.Model):
 
     @property
     def state_label(self):
-        return {'cancelled': '취소', 'completed': '이용 완료', 'no_show': '노쇼 확정'}.get(
+        return {'cancelled': '취소', 'completed': '이용 완료', 'no_show': '미방문(No-show)'}.get(
             self.status, '이용 중' if self.is_attended else '예약 완료')
 
 
@@ -126,6 +126,27 @@ class RecurringBlock(db.Model):
                            name='recurring_block_range'),
         db.CheckConstraint('start_minute % 30 = 0 AND end_minute % 30 = 0',
                            name='recurring_block_half_hour_grid'),
+    )
+
+
+class CalendarEvent(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(100), nullable=False)
+    kind = db.Column(db.String(12), nullable=False)
+    start_date = db.Column(db.String(10), nullable=False, index=True)
+    end_date = db.Column(db.String(10), nullable=False)
+    weekday = db.Column(db.Integer)
+    start_minute = db.Column(db.Integer)
+    end_minute = db.Column(db.Integer)
+    blocks_reservations = db.Column(db.Boolean, nullable=False, default=True)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    __table_args__ = (
+        db.CheckConstraint("kind IN ('class','rental','event','closed')", name='calendar_kind'),
+        db.CheckConstraint('start_date <= end_date', name='calendar_dates'),
+        db.CheckConstraint('weekday IS NULL OR (weekday >= 0 AND weekday <= 6)', name='calendar_weekday'),
+        db.CheckConstraint('(start_minute IS NULL AND end_minute IS NULL) OR '
+                           '(start_minute >= 0 AND end_minute <= 1440 AND start_minute < end_minute '
+                           'AND start_minute % 30 = 0 AND end_minute % 30 = 0)', name='calendar_time'),
     )
 
 

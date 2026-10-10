@@ -145,9 +145,11 @@ def create_app(test_config=None):
     from popup_routes import register_popup_routes
     from admin_stats import register_stats_routes
     from commands import register_commands
+    from calendar_routes import register_calendar_routes
     register_routes(app)
     register_board_routes(app)
     register_popup_routes(app)
     register_stats_routes(app)
     register_commands(app)
+    register_calendar_routes(app)
     return app

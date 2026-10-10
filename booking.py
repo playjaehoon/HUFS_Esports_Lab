@@ -11,7 +11,14 @@ from models import (AuditEvent, BlockedTime, DailyBooking, RecurringBlock,
 
 KOREA = ZoneInfo('Asia/Seoul')
 SEATS = tuple(range(1, 28))  # Existing drawing; confirm onsite before deployment.
+BOOKING_GRACE_MINUTES = 5
+SEAT_GROUPS = (('left-wall-top', (17, 18, 19, 20, 21)),
+               ('left-wall-bottom', (22, 23, 24, 25, 26, 27)),
+               ('center-island-top', tuple(range(1, 11))),
+               ('center-island-bottom', tuple(range(11, 17))))
 DEFAULTS = {'reservation_open': '1', 'max_hours': '3', 'open_hour': '9', 'close_hour': '17',
+            'open_weekdays': '[0,1,2,3,4]',
+            'calendar_future_months': '3',
             'advance_days': '7', 'department_policy_mode': 'all', 'department_policy_list': '[]',
             'department_seats': '[]', 'priority_departments': '[]', 'priority_advance_days': '14',
             'notice': '이용 당일 학생증을 준비해 주세요.',
@@ -86,8 +93,8 @@ def booking_input(data, seat_required=True, student=None):
         raise RuleError('운영시간 안에서 시작·종료 시간을 선택해 주세요.')
     if end - start > policy['max_hours'] * 60:
         raise RuleError(f"최대 {policy['max_hours']}시간까지 예약할 수 있습니다.")
-    if datetime.combine(date, datetime.min.time(), KOREA) + timedelta(minutes=start) <= now:
-        raise RuleError('이미 시작된 시간은 예약할 수 없습니다.')
+    if datetime.combine(date, datetime.min.time(), KOREA) + timedelta(minutes=start + BOOKING_GRACE_MINUTES) < now:
+        raise RuleError(f'예약 시작 후 {BOOKING_GRACE_MINUTES}분이 지나 예약할 수 없습니다.')
     seat = integer(data.get('seat_number'), '좌석 번호') if seat_required else None
     if seat_required and seat not in SEATS:
         raise RuleError('존재하지 않는 좌석입니다.')
@@ -97,14 +104,14 @@ def booking_input(data, seat_required=True, student=None):
 
 
 def blocked_seats(date, start, end):
+    from lab_schedule import schedule_for_day
+    schedule = schedule_for_day(parse_date(date))
+    if not any(a <= start and end <= b for a, b in schedule['intervals']):
+        return set(SEATS)
     seats = set()
-    for block in db.session.scalars(db.select(BlockedTime).where(BlockedTime.date == date)):
+    for block in db.session.scalars(db.select(BlockedTime).where(BlockedTime.date == date, BlockedTime.seat_number.is_not(None))):
         if block.start_minute is None or max(start, block.start_minute) < min(end, block.end_minute):
-            seats.update(SEATS if block.seat_number is None else [block.seat_number])
-    weekday = parse_date(date).weekday()
-    for block in db.session.scalars(db.select(RecurringBlock).where(RecurringBlock.weekday == weekday)):
-        if max(start, block.start_minute) < min(end, block.end_minute):
-            seats.update(SEATS)
+            seats.add(block.seat_number)
     return seats
 
 
@@ -198,8 +205,14 @@ def ends_at(reservation):
 
 
 def no_show_allowed(reservation, now):
-    """Staff may mark a missed visit from 15 minutes after the booking starts."""
-    return now >= starts_at(reservation) + timedelta(minutes=15)
+    """Staff may mark a missed visit once the booking starts."""
+    return now >= starts_at(reservation)
+
+
+def check_in_allowed(reservation, now):
+    """Allow same-day check-in from ten minutes before start until end."""
+    return (reservation.status == 'active' and reservation.date == now.date().isoformat()
+            and starts_at(reservation) - timedelta(minutes=10) <= now < ends_at(reservation))
 
 
 def cancellation_allowed(reservation, now):

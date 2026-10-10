@@ -21,8 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const gpuModel = document.getElementById('seatGpuModel');
     const closeMinute = Number(form.dataset.closeMinute), loadedAt = Date.now();
     const csrf = document.querySelector('meta[name="csrf-token"]').content;
-    const groups = [['left-wall-top',[17,18,19,20,21]],['left-wall-bottom',[22,23,24,25,26,27]],
-        ['center-island-top',[1,2,3,4,5,6,7,8,9,10]],['center-island-bottom',[11,12,13,14,15,16]]];
+    const groups = JSON.parse(form.dataset.seatGroups);
     const zones = {
         performance: {
             name: 'Evnia Performance Zone', range: 'PC 1–10',
@@ -44,7 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const parseTime = value => { const m = /^(\d{2}):(\d{2})$/.exec(value || ''); return m ? +m[1] * 60 + +m[2] : NaN; };
     const formatTime = value => `${String(Math.floor(value / 60)).padStart(2,'0')}:${String(value % 60).padStart(2,'0')}`;
     const formatDuration = value => value < 60 ? `${value}분` : `${Math.floor(value/60)}시간${value%60 ? ` ${value%60}분` : ''}`;
-    const currentServerMinute = () => +form.dataset.serverMinute + Math.floor((Date.now() - loadedAt) / 60000);
+    const currentServerTime = () => Number(form.dataset.serverNow) * 1000 + Date.now() - loadedAt;
 
     groups.forEach(([className, numbers]) => {
         const group = document.createElement('div');
@@ -103,7 +102,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!start.value || !duration.value) return '';
         const startMinute = parseTime(start.value), useMinutes = +duration.value;
         if (!Number.isFinite(startMinute) || startMinute % 30) return '시작 시간은 30분 단위로 선택해 주세요.';
-        if (date.value === form.dataset.serverDate && startMinute <= currentServerMinute()) return '이미 지난 시간은 예약할 수 없습니다.';
+        const deadline = Date.parse(`${date.value}T${start.value}:00+09:00`) + Number(form.dataset.graceMinutes) * 60000;
+        if (currentServerTime() > deadline) return `예약 시작 후 ${form.dataset.graceMinutes}분이 지나 예약할 수 없습니다.`;
         if (startMinute + useMinutes > closeMinute) return `운영 종료 시간(${formatTime(closeMinute)})을 넘습니다. 시작 시간이나 이용 시간을 줄여 주세요.`;
         end.value = formatTime(startMinute + useMinutes);
         endPreview.textContent = `${start.value} 시작 · ${end.value} 종료`;

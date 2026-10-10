@@ -1,9 +1,10 @@
 """HTTP handlers. Business rules and DB writes live in explicit boundaries."""
-from datetime import timedelta
+from datetime import timedelta, timezone
 from ipaddress import ip_address
 import json
 import re
 from uuid import uuid4
+from types import SimpleNamespace
 
 from flask import abort, flash, jsonify, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_user, logout_user, login_required
@@ -12,11 +13,11 @@ from sqlalchemy.orm import joinedload
 
 from auth_helpers import admin_required, student_required, throttle
 from departments import DEPARTMENT_GROUPS, DEPARTMENTS, OTHER_CHOICES, department_form_value, selected_department
-from booking import (SEATS, RuleError, allowed_student, allowed_booking_student, booking_advance_days,
+from booking import (SEATS, SEAT_GROUPS, BOOKING_GRACE_MINUTES, RuleError, allowed_student, allowed_booking_student, booking_advance_days,
                      department_policy, department_seat_policy, priority_departments, restricted_seats,
                      blocked_seats, booking_input,
                      clock, ends_at, event, integer, korea_now, no_show_allowed, parse_date, release, rules,
-                     time_minutes, cancellation_allowed,
+                     time_minutes, cancellation_allowed, check_in_allowed,
                      starts_at, write_transaction)
 from models import (Admin, AuditEvent, BlockedTime, BoardPost, DailyBooking, RecurringBlock, Reservation,
                     ReservationSlot, Setting, Student, StudentNumberClaim, db, utcnow)
@@ -67,6 +68,8 @@ def register_routes(app):
     @app.route('/')
     def home():
         from popup_routes import visible_popup
+        from calendar_routes import calendar_context
+        from lab_schedule import operating_status
         recent_gallery = db.session.scalars(db.select(BoardPost).where(
             BoardPost.category == 'gallery', BoardPost.is_hidden.is_(False)).order_by(
             BoardPost.created_at.desc(), BoardPost.id.desc()).limit(3)).all()
@@ -76,7 +79,8 @@ def register_routes(app):
         policy = rules()
         return render_template('home.html', recent_gallery=recent_gallery, recent_notices=recent_notices,
                                usage_notice=policy['usage_notice'], usage_details=policy['usage_details'],
-                               popup=visible_popup(), popup_day=korea_now().date().isoformat())
+                               popup=visible_popup(), popup_day=korea_now().date().isoformat(),
+                               lab_status=operating_status(), **calendar_context(request.args.get('month')))
 
     @app.route('/usage')
     def usage_guide():
@@ -103,7 +107,8 @@ def register_routes(app):
                                last_date=(now.date() + timedelta(days=booking_advance_days(current_user, policy))).isoformat(),
                                booking_window_days=booking_advance_days(current_user, policy),
                                department_only_seats=department_seat_policy(),
-                               server_minute=now.hour * 60 + now.minute)
+                               server_now=now.timestamp(), booking_grace_minutes=BOOKING_GRACE_MINUTES,
+                               seat_groups=SEAT_GROUPS)
 
     @app.route('/login', methods=['GET', 'POST'])
     def student_login():
@@ -314,11 +319,37 @@ def register_routes(app):
         day = request.args.get('date', korea_now().date().isoformat())
         parse_date(day)
         query = db.select(Reservation).options(joinedload(Reservation.student)).where(Reservation.date == day)
+        day_reservations = db.session.scalars(query.order_by(Reservation.start_minute, Reservation.seat_number)).all()
         term = request.args.get('q', '').strip()[:50]
         if term:
             query = query.join(Student).where(db.or_(Student.student_number.contains(term, autoescape=True),
                                                      Student.name.contains(term, autoescape=True)))
-        reservations = db.session.scalars(query.order_by(Reservation.start_minute, Reservation.seat_number)).all()
+        reservations = (db.session.scalars(query.order_by(Reservation.start_minute, Reservation.seat_number)).all()
+                        if term else day_reservations)
+        now = korea_now()
+        seat_overview = {seat: {'reservations': [], 'blocks': []} for seat in SEATS}
+        for reservation in day_reservations:
+            seat_overview[reservation.seat_number]['reservations'].append(reservation)
+        day_blocks = db.session.scalars(db.select(BlockedTime).where(BlockedTime.date == day)).all()
+        repeated = db.session.scalars(db.select(RecurringBlock).where(
+            RecurringBlock.weekday == parse_date(day).weekday())).all()
+        for block in [*day_blocks, *repeated]:
+            for seat in SEATS if getattr(block, 'seat_number', None) is None else (block.seat_number,):
+                seat_overview[seat]['blocks'].append(block)
+        from lab_schedule import schedule_for_day, schedule_sources, applies, open_weekdays
+        selected_date = parse_date(day)
+        sources = schedule_sources(selected_date, selected_date)
+        schedule = schedule_for_day(selected_date, sources)
+        extra_blocks = [item for item in sources[0] if item.blocks_reservations and applies(item, selected_date)]
+        for item in extra_blocks:
+            for info in seat_overview.values():
+                info['blocks'].append(SimpleNamespace(start_minute=item.start_minute, end_minute=item.end_minute, reason=item.title))
+        if schedule['holiday'] or selected_date.weekday() not in open_weekdays():
+            for info in seat_overview.values():
+                info['blocks'].append(SimpleNamespace(start_minute=None, end_minute=None, reason=schedule['closed_reason']))
+        for info in seat_overview.values():
+            info['state'] = ('blocked' if info['blocks'] else
+                             'reserved' if any(r.status in {'active', 'completed'} for r in info['reservations']) else 'empty')
         blocks = db.session.scalars(db.select(BlockedTime).where(BlockedTime.date >= korea_now().date().isoformat()).order_by(BlockedTime.date)).all()
         grouped = {}
         for block in blocks:
@@ -336,8 +367,9 @@ def register_routes(app):
         return render_template('admin_dashboard.html', reservations=reservations, day=day, term=term,
                                policy=rules(), event_groups=[g for g in groups if g['first'].kind == 'event'],
                                seat_groups=[g for g in groups if g['first'].kind == 'seats'], recurring_blocks=recurring,
-                               seats=SEATS, now=korea_now(), starts_at=starts_at, ends_at=ends_at,
-                               no_show_allowed=no_show_allowed,
+                               seats=SEATS, now=now, starts_at=starts_at, ends_at=ends_at,
+                               seat_overview=seat_overview, seat_layout_groups=SEAT_GROUPS,
+                               no_show_allowed=no_show_allowed, check_in_allowed=check_in_allowed,
                                department_groups=DEPARTMENT_GROUPS, extra_departments=extra_departments,
                                department_mode=department_mode, department_names=department_names,
                                department_seats=department_seat_policy(),
@@ -447,6 +479,21 @@ def register_routes(app):
                     release(reservation)
             event(actor(), 'deactivate_student', user.id)
         flash('계정을 비활성화했습니다. 이용 이력은 보존됩니다.')
+        return redirect(url_for('admin_students'))
+
+    @app.route('/admin/students/restore/<int:student_id>', methods=['POST'])
+    @admin_required
+    def admin_restore_student(student_id):
+        reason = request.form.get('reason', '').strip()
+        if not 1 <= len(reason) <= 200:
+            raise RuleError('계정 복구 사유를 입력해 주세요.')
+        with write_transaction():
+            user = db.get_or_404(Student, student_id)
+            if user.archived:
+                user.archived = False
+                user.session_version += 1
+                event(actor(), 'restore_student', user.id, reason)
+        flash('계정을 복구했습니다. 기존 이용 제한은 유지되며 취소된 예약은 새로 예약해야 합니다.')
         return redirect(url_for('admin_students'))
 
     @app.route('/admin/students/block/<int:student_id>', methods=['POST'])
@@ -605,10 +652,8 @@ def register_routes(app):
             raise RuleError('학생증과 당일 예약 정보를 먼저 대조해 주세요.')
         with write_transaction():
             reservation = db.get_or_404(Reservation, reservation_id)
-            if reservation.status != 'active' or reservation.date != korea_now().date().isoformat() or korea_now() >= ends_at(reservation):
-                raise RuleError('당일 종료 전 활성 예약만 체크인할 수 있습니다.', 409)
-            if korea_now() < starts_at(reservation):
-                raise RuleError('예약 시작 시간부터 체크인할 수 있습니다.', 409)
+            if not check_in_allowed(reservation, korea_now()):
+                raise RuleError('방문 확인은 예약 당일 시작 10분 전부터 종료 전까지 가능합니다.', 409)
             allowed_student(reservation.student)
             if reservation.seat_number in blocked_seats(reservation.date, reservation.start_minute, reservation.end_minute):
                 raise RuleError('이용이 제한된 시간 또는 좌석입니다.', 409)
@@ -664,18 +709,35 @@ def register_routes(app):
     def admin_no_show(reservation_id):
         reason = request.form.get('reason', '').strip()
         if not 1 <= len(reason) <= 200:
-            raise RuleError('노쇼 확인 사유를 입력해 주세요.')
+            raise RuleError('미방문 확인 사유를 입력해 주세요.')
         with write_transaction():
             reservation = db.get_or_404(Reservation, reservation_id)
-            if reservation.status != 'active' or reservation.is_attended or not no_show_allowed(reservation, korea_now()):
-                raise RuleError('예약 시작 15분 후 미방문 예약만 노쇼로 확정할 수 있습니다.', 409)
+            now = korea_now()
+            if reservation.status != 'active' or reservation.is_attended or not no_show_allowed(reservation, now):
+                raise RuleError('예약 시작 시각이 지난 활성 미방문 예약만 처리할 수 있습니다.', 409)
             reservation.status = 'no_show'
+            processed_at = now.astimezone(timezone.utc).replace(tzinfo=None)
+            blocked_until = processed_at + timedelta(days=7)
+            if not reservation.student.blocked_until or reservation.student.blocked_until < blocked_until:
+                reservation.student.blocked_until = blocked_until
+            event(actor(), 'student_restriction', reservation.student_pk,
+                  f'no_show reservation #{reservation.id}; until {reservation.student.blocked_until.isoformat()} UTC')
+            restriction_end = reservation.student.blocked_until.replace(tzinfo=timezone.utc)
+            upcoming = db.session.scalars(db.select(Reservation).where(
+                Reservation.student_pk == reservation.student_pk,
+                Reservation.id != reservation.id,
+                Reservation.status == 'active', Reservation.is_attended.is_(False))).all()
+            for booked in upcoming:
+                if ends_at(booked) > now and starts_at(booked) < restriction_end:
+                    booked.status, booked.cancelled_at = 'cancelled', processed_at
+                    release(booked)
+                    event(actor(), 'cancel_for_no_show', booked.id, f'no_show reservation #{reservation.id}')
             # Release the seat for other students while retaining this student's
             # one-booking-per-day record and the no-show audit trail.
             db.session.execute(db.delete(ReservationSlot).where(ReservationSlot.reservation_id == reservation.id))
             event(actor(), 'no_show', reservation.id, reason)
             day = reservation.date
-        flash('노쇼를 기록했습니다. 이용 제한은 학생 관리에서 별도로 적용하세요.')
+        flash('미방문(No-show)을 기록하고 7일간 예약을 정지했습니다. 제한 기간의 미입실 예약도 취소했습니다. 더 긴 기존 제한은 유지됩니다.')
         return redirect(url_for('admin_dashboard', date=day))
 
     @app.route('/admin/settings', methods=['POST'])

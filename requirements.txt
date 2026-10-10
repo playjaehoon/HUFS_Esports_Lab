@@ -9,3 +9,4 @@ tzdata==2026.4
 Pillow==12.3.0
 nh3==0.3.7
 openpyxl==3.1.5
+holidays==0.106

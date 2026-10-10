@@ -1,11 +1,11 @@
 {% extends 'layout.html' %}{% from '_forms.html' import csrf, input, half_hour_select %}
 {% block content %}
 <h1 class="page-title">당일 이용 관리</h1>
-<nav class="admin-content-links" aria-label="관리 바로가기"><a href="#operation-settings">이용 시 유의사항 수정</a><a href="#department-policy">학과별 예약 정책</a><a href="{{ url_for('admin_posts', category='notice') }}">공지사항 관리</a><a href="{{ url_for('admin_posts', category='gallery') }}">갤러리 관리</a><a href="{{ url_for('admin_popup') }}">메인 팝업 관리</a></nav>
+<nav class="admin-content-links" aria-label="관리 바로가기"><a href="{{ url_for('admin_calendar') }}">실습실 일정 · 운영 요일 관리</a><a href="#operation-settings">이용 시 유의사항 수정</a><a href="#department-policy">학과별 예약 정책</a><a href="{{ url_for('admin_posts', category='notice') }}">공지사항 관리</a><a href="{{ url_for('admin_posts', category='gallery') }}">갤러리 관리</a><a href="{{ url_for('admin_popup') }}">메인 팝업 관리</a></nav>
 <form class="filter-row" method="get"><label>날짜 <input class="form-control" type="date" name="date" value="{{ day }}" required></label><label>이름·학번 <input class="form-control" name="q" value="{{ term }}" maxlength="50"></label><button class="btn btn-primary">조회</button></form>
 <section class="card"><h2 class="section-title">{{ day }} 예약 · {{ reservations|length }}건</h2>
 {% for r in reservations %}
-<article class="admin-reservation">
+<article class="admin-reservation" id="booking-{{ r.id }}">
 <div><span class="status-badge">{{ r.state_label }}</span><h3>{{ r.start_minute|clock }}–{{ r.end_minute|clock }} · PC {{ r.seat_number }}</h3>
 <p>{{ r.student.name }} · {{ r.student.student_number }} · 예약 #{{ r.id }}{% if r.booking_ip %} · 접속 IP {{ r.booking_ip }}{% endif %}</p>
 {% if r.status != 'active' or r.is_attended %}<small>기록 당시: {{ r.student_name }} · {{ r.student_id }}</small>{% endif %}</div>
@@ -14,19 +14,20 @@
     {% if r.is_attended %}
     <form method="post" action="{{ url_for('admin_checkout', reservation_id=r.id) }}">{{ csrf() }}<button class="btn btn-primary">퇴실 확인</button></form>
     <details><summary>체크인 정정</summary><form method="post" action="{{ url_for('admin_unattend_reservation', reservation_id=r.id) }}">{{ csrf() }}<label>정정 사유 <input class="form-control" name="reason" required maxlength="200"></label><button class="btn">체크인 취소</button></form></details>
-    {% elif r.date == now.date().isoformat() and starts_at(r) <= now and ends_at(r) > now %}
+    {% elif check_in_allowed(r, now) %}
     <form method="post" action="{{ url_for('admin_attend_reservation', reservation_id=r.id) }}">{{ csrf() }}<label class="check-label"><input type="checkbox" name="card_checked" value="1" required> 학생증 확인 후 방문확인을 눌러주세요</label><button class="btn btn-primary">방문 확인</button></form>
-    {% elif ends_at(r) > now %}<p class="help-text">예약 시작 시간이 되면 학생증 확인 후 방문확인을 눌러주세요.</p>
+    {% elif ends_at(r) > now %}<p class="help-text">방문 확인은 예약 당일 시작 10분 전부터 가능합니다.</p>
     {% endif %}
     {% if not r.is_attended %}
     {% set can_mark_no_show = no_show_allowed(r, now) %}
     <form class="no-show-action" method="post" action="{{ url_for('admin_no_show', reservation_id=r.id) }}">{{ csrf() }}
         <label>미방문 확인 사유 <input class="form-control" name="reason" required maxlength="200" {% if not can_mark_no_show %}disabled{% endif %}></label>
-        {% if not can_mark_no_show %}<p class="help-text" id="no-show-wait-{{ r.id }}">예약 시작 15분 후 노쇼를 확정할 수 있습니다.</p>{% endif %}
-        <button class="btn btn-secondary" {% if not can_mark_no_show %}disabled aria-describedby="no-show-wait-{{ r.id }}"{% endif %}>노쇼 확정</button>
+        <p class="help-text" id="no-show-wait-{{ r.id }}">{% if not can_mark_no_show %}예약 시작 시각부터 처리할 수 있습니다. {% endif %}처리하면 즉시 7일간 예약이 정지되고, 제한 기간의 미입실 예약도 취소됩니다.</p>
+        <button class="btn btn-secondary" aria-describedby="no-show-wait-{{ r.id }}" {% if not can_mark_no_show %}disabled{% endif %}>미방문(No-show)</button>
     </form>{% endif %}
 {% endif %}</div></article>
 {% else %}<p class="empty-state">해당 날짜에 예약이 없습니다.</p>{% endfor %}</section>
+{% include '_admin_seat_overview.html' %}
 <div class="account-grid">
 <details class="card" id="operation-settings" open><summary>이용 시 유의사항 · 예약 운영 설정</summary><form method="post" action="{{ url_for('admin_settings') }}">{{ csrf() }}
 {{ input('notice', '예약 화면 상단 공지', value=policy.notice, maxlen=255, required=false) }}

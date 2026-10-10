@@ -1,0 +1,32 @@
+<section class="card admin-seat-overview" aria-labelledby="seatOverviewHeading">
+<h2 class="section-title" id="seatOverviewHeading">{{ day }} 좌석별 예약 현황</h2>
+<p class="help-text">선택한 날짜 전체 기준입니다. 좌석을 누르면 예약 시간과 방문 상태를 확인할 수 있습니다. 이름 검색과 관계없이 전체 좌석을 표시합니다.</p>
+<div class="admin-seat-legend" aria-label="좌석 상태 범례">
+<span><i class="map-empty"></i>예약 없음</span><span><i class="map-reserved"></i>예약 있음</span><span><i class="map-blocked"></i>차단 일정</span>
+</div>
+<div class="admin-seat-layout">
+<div class="seat-map-wrapper"><div class="lab-room" aria-label="관리자 실습실 좌석도" id="adminLabRoom">
+{% for group, numbers in seat_layout_groups %}
+<div class="{{ group }} {{ 'island-grid' if group.startswith('center') else 'seat-col' }}">
+{% for number in numbers %}{% set info = seat_overview[number] %}
+<button type="button" class="seat admin-map-seat map-{{ info.state }} {{ 'faces-left' if group.startswith('left') or number % 2 == 0 else 'faces-right' }}" data-seat-number="{{ number }}" aria-controls="adminSeat{{ number }}" aria-pressed="false" aria-label="PC {{ number }}, {{ {'empty':'예약 없음','reserved':'예약 있음','blocked':'차단 일정'}[info.state] }}, 상세 보기">{{ number }}</button>
+{% endfor %}</div>{% endfor %}
+</div></div>
+<div class="admin-seat-details">
+<p class="help-text" data-seat-detail-hint>좌석을 선택하면 예약과 차단 상세를 확인할 수 있습니다.</p>
+{% for number, info in seat_overview.items() %}
+<section id="adminSeat{{ number }}" class="admin-seat-panel" aria-labelledby="adminSeatTitle{{ number }}" hidden>
+<h3 id="adminSeatTitle{{ number }}" tabindex="-1">PC {{ number }} · {{ day }}</h3>
+{% if number in department_seats %}<p class="help-text">글로벌스포츠산업학부 전용 좌석</p>{% endif %}
+<h4>예약 {{ info.reservations|length }}건</h4>
+{% for r in info.reservations %}
+<article class="admin-seat-booking"><strong>{{ r.start_minute|clock }}–{{ r.end_minute|clock }}</strong><span class="status-badge">{{ r.state_label }}</span>
+<p>{{ r.student.name }} · {{ r.student.student_number }} · #{{ r.id }}</p>
+{% if r in reservations %}<a href="#booking-{{ r.id }}">예약 관리로 이동</a>{% elif term %}<a href="{{ url_for('admin_dashboard', date=day) }}#booking-{{ r.id }}">예약 관리로 이동</a>{% endif %}
+</article>{% else %}<p class="help-text">이 좌석에는 예약이 없습니다.</p>{% endfor %}
+{% if info.blocks %}<h4>차단 일정</h4><ul class="admin-seat-blocks">{% for block in info.blocks %}<li><strong>{{ '종일' if block.start_minute is none else (block.start_minute|clock) ~ '–' ~ (block.end_minute|clock) }}</strong> · {{ block.reason }}</li>{% endfor %}</ul>{% endif %}
+</section>{% endfor %}
+</div></div>
+<noscript><p class="help-text">좌석 상세 보기는 JavaScript가 필요합니다. 위 예약 목록에서도 모든 예약을 확인할 수 있습니다.</p></noscript>
+</section>
+<script src="{{ url_for('static', filename='js/admin-seats.js', v='20261010-seats-2') }}" defer></script>
