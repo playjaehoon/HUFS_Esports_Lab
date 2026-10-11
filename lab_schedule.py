@@ -75,7 +75,7 @@ def schedule_for_day(day, sources=None, policy=None):
                      if representative else items)
     display_reason = '' if representative else closed_reason
     summary = (representative['display_title'] if representative else
-               ('휴관' if not intervals else (items[0]['label'] if items else '')))
+               ('휴관' if not intervals else (items[0]['display_title'] if items else '')))
     return {'display_events': display_items, 'display_reason': display_reason,
             'summary_label': summary, 'date': day.isoformat(), 'weekday': WEEKDAYS[day.weekday()], 'holiday': holiday,
             'closed_reason': closed_reason or ('수업·대관·휴관 일정' if not intervals else ''),

@@ -41,9 +41,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!day) { grid.append(make('span', 'calendar-day-blank', '')); return; }
             const button = make('button', `calendar-day ${day.closed ? 'is-closed' : 'is-open'} ${day.date === today ? 'is-today' : ''}`, '');
             button.type = 'button'; button.dataset.date = day.date;
-            button.setAttribute('aria-label', `${day.date} ${day.weekday}요일, ${day.hours}${day.events.length ? `, 일정 ${day.events.length}건` : ''}`);
+            button.setAttribute('aria-label', `${day.date} ${day.weekday}요일, ${day.hours}${day.summary_label ? `, ${day.summary_label}` : ''}${day.events.length ? `, 일정 ${day.events.length}건` : ''}`);
             button.append(make('span', 'calendar-day-number', String(Number(day.date.slice(-2)))));
-            if (day.summary_label) button.append(make('span', 'calendar-event-mark', day.summary_label));
+            if (day.summary_label) {
+                const mark = make('span', 'calendar-event-mark', day.summary_label);
+                mark.title = day.summary_label;
+                button.append(mark);
+            }
             grid.append(button);
         });
         calendar.querySelector('[data-month-title]').textContent = `${data.year}년 ${data.month}월`;
