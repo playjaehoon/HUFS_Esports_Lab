@@ -216,6 +216,22 @@ def test_calendar_delete_releases_block_and_preserves_history(app):
     assert '삭제 검수' not in admin.get('/admin/calendar').get_data(as_text=True)
     assert post(admin, '/admin/calendar', {'action':'toggle', 'id':identifier}).status_code == 404
 
+
+@pytest.mark.parametrize('kind', ['general', 'event', 'class', 'rental'])
+@pytest.mark.parametrize('title', ['시범 개방 안내', '장기간운영일정및실습실이용안내' * 5])
+def test_calendar_cells_use_public_title_without_losing_full_detail(app, kind, title):
+    admin = login(app, admin=True)
+    assert post(admin, '/admin/calendar', event_form(kind=kind, title=title)).status_code == 302
+    public = app.test_client()
+    day = public.get('/api/lab/calendar?month=2026-09').get_json()['days'][14]
+    assert day['summary_label'] == title
+    assert day['display_events'][0]['display_title'] == title
+    assert day['events'][0]['blocks'] == (kind in {'class', 'rental'})
+    html = public.get('/?month=2026-09').get_data(as_text=True)
+    cell = html.split('data-date="2026-09-15"', 1)[1].split('</button>', 1)[0]
+    assert f'class="calendar-event-mark" title="{title}">{title}</span>' in cell
+    assert f', {title}, 일정 1건' in cell
+
 @pytest.mark.parametrize('title', ['시범 운영 종료', '내부 사정으로 휴관', '방학 휴관'])
 def test_arbitrary_long_closure_blocks_weekdays_and_weekends(app, title):
     admin = login(app, admin=True)

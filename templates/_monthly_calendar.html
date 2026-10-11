@@ -5,7 +5,7 @@
         <div><div class="calendar-weekdays" aria-hidden="true">{% for name in ['일','월','화','수','목','금','토'] %}<span>{{ name }}</span>{% endfor %}</div>
         <div class="calendar-grid" data-calendar-grid aria-label="월간 날짜">
         {% for week in calendar.weeks %}{% for day in week %}{% if day %}
-        <button type="button" class="calendar-day {{ 'is-closed' if day.closed else 'is-open' }} {{ 'is-today' if day.date == today else '' }}" data-date="{{ day.date }}" aria-pressed="{{ 'true' if day.date == selected_day.date else 'false' }}" aria-label="{{ day.date }} {{ day.weekday }}요일, {{ day.hours }}{% if day.events %}, 일정 {{ day.events|length }}건{% endif %}"><span class="calendar-day-number">{{ day.date[-2:]|int }}</span>{% if day.summary_label %}<span class="calendar-event-mark">{{ day.summary_label }}</span>{% endif %}</button>
+        <button type="button" class="calendar-day {{ 'is-closed' if day.closed else 'is-open' }} {{ 'is-today' if day.date == today else '' }}" data-date="{{ day.date }}" aria-pressed="{{ 'true' if day.date == selected_day.date else 'false' }}" aria-label="{{ day.date }} {{ day.weekday }}요일, {{ day.hours }}{% if day.summary_label %}, {{ day.summary_label }}{% endif %}{% if day.events %}, 일정 {{ day.events|length }}건{% endif %}"><span class="calendar-day-number">{{ day.date[-2:]|int }}</span>{% if day.summary_label %}<span class="calendar-event-mark" title="{{ day.summary_label }}">{{ day.summary_label }}</span>{% endif %}</button>
         {% else %}<span class="calendar-day-blank" aria-hidden="true"></span>{% endif %}{% endfor %}{% endfor %}</div></div>
         <section class="calendar-day-detail" aria-labelledby="calendar-day-title" aria-live="polite">
             <h3 id="calendar-day-title" tabindex="-1">{{ selected_day.date }} ({{ selected_day.weekday }})</h3>
@@ -18,4 +18,4 @@
     <noscript><p>날짜별 일정</p>{% for day in calendar.days %}<details><summary>{{ day.date }} · {{ day.hours }}</summary>{% for item in day.events %}<p>{{ item.time }} · {{ item.title }}</p>{% endfor %}</details>{% endfor %}</noscript>
     <script type="application/json" data-calendar-data>{{ calendar|tojson }}</script>
 </section>
-<script src="{{ url_for('static', filename='js/lab-calendar.js', v='20261011-calendar-general') }}" defer></script>
+<script src="{{ url_for('static', filename='js/lab-calendar.js', v='20261011-calendar-titles') }}" defer></script>
