@@ -36,6 +36,20 @@ def upgrade(app, revision='head'):
     return app.test_cli_runner().invoke(args=['db', 'upgrade', '--directory', MIGRATIONS, revision])
 
 
+def test_image_width_migration_preserves_populated_parent_and_attachments(tmp_path):
+    database = tmp_path / 'image-widths.db'
+    with migration_app(database) as app:
+        assert upgrade(app, '0012').exit_code == 0
+        change(database, "INSERT INTO board_post (id, category, title, body, body_format, image_path, image_alt, created_at, updated_at, is_hidden) VALUES (100, 'gallery', 'Existing photos', 'Keep body', 'text', 'uploads/cover.jpg', 'cover', '2026-10-10', '2026-10-10', 0)")
+        change(database, "INSERT INTO board_attachment (id,post_id,image_path,image_alt) VALUES (100,100,'uploads/extra.jpg','extra')")
+        result = upgrade(app)
+        assert result.exit_code == 0, result.output
+    assert rows(database, 'SELECT title,body,image_path,image_width FROM board_post WHERE id=100') == [('Existing photos','Keep body','uploads/cover.jpg',100)]
+    assert rows(database, 'SELECT post_id,image_path,display_width FROM board_attachment WHERE id=100') == [(100,'uploads/extra.jpg',100)]
+    assert rows(database, 'PRAGMA foreign_key_check') == []
+    assert rows(database, 'PRAGMA integrity_check') == [('ok',)]
+
+
 def rows(database, query, parameters=()):
     with closing(sqlite3.connect(database)) as connection:
         return connection.execute(query, parameters).fetchall()
@@ -130,7 +144,7 @@ def test_import_preserves_source_and_converts_security_and_relations(
     assert rows(output, 'SELECT value FROM setting WHERE key="max_hours"') == [('2',)]
     assert rows(output, 'SELECT value FROM setting WHERE key="open_hour"') == [('9',)]
     assert rows(output, 'SELECT action FROM audit_event') == [('legacy_import',)]
-    assert rows(output, 'SELECT version_num FROM alembic_version') == [('0011',)]
+    assert rows(output, 'SELECT version_num FROM alembic_version') == [('0013',)]
     assert rows(output, "SELECT title, body FROM board_post WHERE category='notice'") == [
         ('실습실 이용 안내', 'Synthetic notice')]
     assert rows(output, "SELECT count(*) FROM board_post WHERE category='gallery'") == [(4,)]
@@ -190,7 +204,7 @@ def test_empty_version_table_from_older_failed_upgrade_can_be_imported(legacy, t
     with migration_app(tmp_path / 'cli.db') as app, app.app_context():
         import_legacy(legacy, output, 'UTC')
     assert legacy.read_bytes() == before
-    assert rows(output, 'SELECT version_num FROM alembic_version') == [('0011',)]
+    assert rows(output, 'SELECT version_num FROM alembic_version') == [('0013',)]
 
 
 def test_fresh_upgrade_is_versioned_and_safe_to_repeat(tmp_path):
@@ -198,10 +212,10 @@ def test_fresh_upgrade_is_versioned_and_safe_to_repeat(tmp_path):
     with migration_app(database) as app:
         result = upgrade(app)
         assert result.exit_code == 0, result.output
-        assert rows(database, 'SELECT version_num FROM alembic_version') == [('0011',)]
+        assert rows(database, 'SELECT version_num FROM alembic_version') == [('0013',)]
         result = upgrade(app)
         assert result.exit_code == 0, result.output
-    assert rows(database, 'SELECT version_num FROM alembic_version') == [('0011',)]
+    assert rows(database, 'SELECT version_num FROM alembic_version') == [('0013',)]
 
 
 def test_revision_0010_preserves_current_popup_and_existing_posts(tmp_path):
@@ -213,7 +227,7 @@ def test_revision_0010_preserves_current_popup_and_existing_posts(tmp_path):
                ('home_popup', '{"enabled":true,"mode":"notice","notice_id":7,"title":"","body":"","image_path":null,"image_alt":"","version":"old-popup"}'))
         result = upgrade(app)
         assert result.exit_code == 0, result.output
-    assert rows(database, 'SELECT version_num FROM alembic_version') == [('0011',)]
+    assert rows(database, 'SELECT version_num FROM alembic_version') == [('0013',)]
     assert rows(database, 'SELECT id, is_hidden FROM board_post WHERE id=7') == [(7, 0)]
     assert rows(database, 'SELECT notice_id, is_active, version FROM home_popup') == [(7, 1, 'old-popup')]
     assert rows(database, 'PRAGMA integrity_check') == [('ok',)]
@@ -229,7 +243,7 @@ def test_revision_0011_preserves_blocks_posts_and_operating_settings(tmp_path):
         change(database, "INSERT INTO recurring_block (weekday,start_minute,end_minute,reason) VALUES (1,600,660,'Private class')")
         result = upgrade(app)
         assert result.exit_code == 0, result.output
-    assert rows(database, 'SELECT version_num FROM alembic_version') == [('0011',)]
+    assert rows(database, 'SELECT version_num FROM alembic_version') == [('0013',)]
     assert rows(database, "SELECT value FROM setting WHERE key='open_weekdays'") == [('[0,1,2]',)]
     assert rows(database, "SELECT value FROM setting WHERE key='open_hour'") == [('10',)]
     assert rows(database, 'SELECT reason FROM blocked_time') == [('Private old rental',)]

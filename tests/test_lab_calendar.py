@@ -182,3 +182,54 @@ def test_compact_status_shows_only_current_state_and_keeps_event_in_calendar(app
     assert '특강' not in strip and '오늘 휴관' not in strip and '정기 휴무' not in strip
     assert '등록된 수업·대관·행사가 없습니다.' not in home
     assert '좌석별 예약 가능 여부는 예약 화면에서 확인해 주세요.' not in home
+
+def test_general_event_and_representative_closure(app):
+    admin = login(app, admin=True)
+    assert post(admin, '/admin/calendar', event_form(kind='general', title='일반 안내')).status_code == 302
+    with app.app_context():
+        day = schedule_for_day(date(2026, 9, 15))
+        assert day['hours'] == '09:00–17:00'
+        assert day['display_events'][0]['label'] == '일반'
+    assert post(admin, '/admin/calendar', event_form(kind='closed', title='시설 점검',
+                start_date='2026-09-14', end_date='2026-09-20', all_day='1')).status_code == 302
+    with app.app_context():
+        day = schedule_for_day(date(2026, 9, 20))
+        assert day['closed'] and day['closed_reason'] == '정기 휴무'
+        assert day['summary_label'] == '시설 점검'
+        assert day['display_reason'] == ''
+        assert len(day['display_events']) == 1
+        assert day['display_events'][0]['title'] == '시설 점검'
+    page = admin.get('/?month=2026-09').get_data(as_text=True)
+    assert '이 일정으로는 예약을 차단하지 않습니다' not in page
+    assert 'calendar-event-kind' not in page
+
+def test_calendar_delete_releases_block_and_preserves_history(app):
+    admin = login(app, admin=True)
+    assert post(admin, '/admin/calendar', event_form(title='삭제 검수')).status_code == 302
+    with app.app_context():
+        identifier = db.session.scalar(db.select(CalendarEvent.id))
+    assert post(admin, '/admin/calendar', {'action':'delete', 'id':identifier}).status_code == 302
+    with app.app_context():
+        item = db.session.get(CalendarEvent, identifier)
+        assert item.is_deleted and not item.is_active
+        assert schedule_for_day(date(2026,9,15))['hours'] == '09:00–17:00'
+    assert '삭제 검수' not in admin.get('/admin/calendar').get_data(as_text=True)
+    assert post(admin, '/admin/calendar', {'action':'toggle', 'id':identifier}).status_code == 404
+
+@pytest.mark.parametrize('title', ['시범 운영 종료', '내부 사정으로 휴관', '방학 휴관'])
+def test_arbitrary_long_closure_blocks_weekdays_and_weekends(app, title):
+    admin = login(app, admin=True)
+    assert post(admin, '/admin/calendar', event_form(kind='closed', title=title,
+        start_date='2026-09-14', end_date='2026-12-31', all_day='1')).status_code == 302
+    with app.app_context():
+        for day in [date(2026,9,15),date(2026,9,19),date(2026,10,9),date(2026,12,31)]:
+            result=schedule_for_day(day)
+            assert result['closed'] and result['intervals']==[]
+            assert result['summary_label']==title and result['display_reason']==''
+            assert [item['title'] for item in result['display_events']]==[title]
+    set_now(app,'2026-09-15','08:00')
+    student=login(app)
+    data=booking(date='2026-09-15')
+    assert student.get('/api/availability',query_string=data).get_json()['blocked_seats']==list(range(1,28))
+    assert post(student,'/api/reserve',json=data).status_code==409
+    assert student.get('/api/lab/status').get_json()['label']=='휴관'

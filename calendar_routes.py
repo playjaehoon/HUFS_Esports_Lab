@@ -93,8 +93,14 @@ def register_calendar_routes(app):
                         else:
                             db.session.add(Setting(key='calendar_future_months', value=months))
                         event(f'admin:{current_user.id}', 'calendar_publication', 'settings', months)
+                    elif action == 'delete':
+                        item = db.get_or_404(CalendarEvent, request.form.get('id', type=int))
+                        item.is_deleted, item.is_active = True, False
+                        event(f'admin:{current_user.id}', 'calendar_delete', item.id, item.title)
                     elif action == 'toggle':
                         item = db.get_or_404(CalendarEvent, request.form.get('id', type=int))
+                        if item.is_deleted:
+                            raise RuleError('삭제된 일정입니다.', 404)
                         item.is_active = not item.is_active
                         check_event_conflicts(item)
                         event(f'admin:{current_user.id}', 'calendar_toggle', item.id, str(item.is_active))
@@ -118,11 +124,13 @@ def register_calendar_routes(app):
                                 raise RuleError('종료 시간은 시작 시간 이후로 선택해 주세요.')
                         identifier = request.form.get('id', type=int)
                         item = db.get_or_404(CalendarEvent, identifier) if identifier else CalendarEvent(is_active=True)
+                        if item.is_deleted:
+                            raise RuleError('삭제된 일정입니다.', 404)
                         item.title, item.kind = title, kind
                         item.start_date, item.end_date = first.isoformat(), last.isoformat()
                         item.weekday = int(weekday) if weekday else None
                         item.start_minute, item.end_minute = start, end
-                        item.blocks_reservations = kind != 'event' or values.get('blocks_reservations') == '1'
+                        item.blocks_reservations = kind not in {'event', 'general'} or values.get('blocks_reservations') == '1'
                         check_event_conflicts(item)
                         db.session.add(item)
                         db.session.flush()
@@ -145,4 +153,4 @@ def register_calendar_routes(app):
                       'blocks_reservations': '1' if editing.blocks_reservations else ''}
         return render_template('admin_calendar.html', values=values, error=error, kinds=KINDS,
             weekdays=WEEKDAYS, open_days=open_weekdays(), policy=rules(), publication=calendar_publication(),
-            events=db.session.scalars(db.select(CalendarEvent).order_by(CalendarEvent.start_date.desc(), CalendarEvent.id.desc())).all()), status
+            events=db.session.scalars(db.select(CalendarEvent).where(CalendarEvent.is_deleted.is_(False)).order_by(CalendarEvent.start_date.desc(), CalendarEvent.id.desc())).all()), status

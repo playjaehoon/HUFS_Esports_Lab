@@ -140,8 +140,9 @@ class CalendarEvent(db.Model):
     end_minute = db.Column(db.Integer)
     blocks_reservations = db.Column(db.Boolean, nullable=False, default=True)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    is_deleted = db.Column(db.Boolean, nullable=False, default=False, server_default='0')
     __table_args__ = (
-        db.CheckConstraint("kind IN ('class','rental','event','closed')", name='calendar_kind'),
+        db.CheckConstraint("kind IN ('class','rental','event','general','closed')", name='calendar_kind'),
         db.CheckConstraint('start_date <= end_date', name='calendar_dates'),
         db.CheckConstraint('weekday IS NULL OR (weekday >= 0 AND weekday <= 6)', name='calendar_weekday'),
         db.CheckConstraint('(start_minute IS NULL AND end_minute IS NULL) OR '
@@ -165,6 +166,7 @@ class BoardPost(db.Model):
     is_hidden = db.Column(db.Boolean, nullable=False, default=False, server_default='0')
     image_path = db.Column(db.String(200))
     image_alt = db.Column(db.String(160))
+    image_width = db.Column(db.Integer, nullable=False, default=100, server_default='100')
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow, index=True)
     updated_at = db.Column(db.DateTime, nullable=False, default=utcnow)
     attachments = db.relationship('BoardAttachment', back_populates='post',
@@ -174,6 +176,7 @@ class BoardPost(db.Model):
         db.CheckConstraint("(category = 'notice' AND image_path IS NULL) OR "
                            "(category = 'gallery' AND image_path IS NOT NULL)",
                            name='board_post_gallery_image'),
+        db.CheckConstraint('image_width >= 25 AND image_width <= 100', name='board_image_width'),
     )
 
 
@@ -182,6 +185,8 @@ class BoardAttachment(db.Model):
     post_id = db.Column(db.Integer, db.ForeignKey('board_post.id', ondelete='CASCADE'), nullable=False, index=True)
     image_path = db.Column(db.String(200), nullable=False)
     image_alt = db.Column(db.String(160), nullable=False)
+    display_width = db.Column(db.Integer, nullable=False, default=100, server_default='100')
+    __table_args__ = (db.CheckConstraint('display_width >= 25 AND display_width <= 100', name='attachment_width'),)
     post = db.relationship(BoardPost, back_populates='attachments')
 
 

@@ -1007,10 +1007,10 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px soli
 .board-body-html p, .board-body-html ul, .board-body-html ol, .board-body-html blockquote { margin: 0 0 1rem; }
 .board-body-html ul, .board-body-html ol { padding-left: 1.5rem; }
 .board-body-html h2, .board-body-html h3 { margin: 1.8rem 0 .6rem; color: #002c5f; }
-.board-detail-attachments { display: grid; gap: 2rem; margin-top: 2rem; }
-.board-detail-attachments img { width: 100%; height: auto; display: block; }
+.board-detail-attachments { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2rem; margin-top: 2rem; }
+.board-detail-attachments img { width: 100%; max-width: 100%; height: auto; display: block; }
 .board-detail-attachments figcaption { padding: .5rem 0; color: #567186; font-size: .9rem; }
-.editor-attachments { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; }
+.editor-attachments { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 1rem; }
 .editor-attachments > div { border: 1px solid #d5e0e6; padding: .8rem; }
 .editor-attachments img { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: #e8eef2; }
 .editor-attachments p { min-height: 2.8rem; margin: .5rem 0; }
@@ -1107,3 +1107,16 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px soli
     .step-panel { grid-template-columns: 52px minmax(0, 1fr) 48px; }
     .step-illustration svg { width: 46px; height: 42px; }
 }
+
+.calendar-event-list li[data-kind="general"] { background: #eef3f5; }
+.calendar-event-list li[data-kind="general"]::before { background: #4e7785; }
+
+.image-size-preview { width: min(100%, 330px); margin: .8rem auto; }
+.image-size-preview img { display: block; max-width: 100%; height: auto; margin: auto; }
+.image-size-control { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin: .8rem 0 1.2rem; }
+.image-size-control label { width: 100%; font-size: .9rem; }
+.image-size-control input { flex: 1; min-width: 0; accent-color: #127681; }
+.image-size-control output { min-width: 3.3rem; text-align: right; font-variant-numeric: tabular-nums; }
+.editor-attachments img { display: block; margin-inline: auto; height: auto; aspect-ratio: auto; }
+.editor-attachments p { overflow-wrap: anywhere; }
+.board-detail-attachments figure { margin: 0 auto; min-width: 0; max-width: 100%; }

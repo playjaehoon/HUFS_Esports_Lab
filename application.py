@@ -58,8 +58,11 @@ def create_app(test_config=None):
     def board_form_size():
         # CSRFProtect parses request.form before the view function, so enlarge
         # the limit before its hook only for staff post forms.
-        if request.endpoint in {'admin_post_new', 'admin_post_edit', 'admin_popup'}:
-            request.max_content_length = 32 * 1024 * 1024
+        if request.endpoint in {'admin_post_new', 'admin_post_edit'}:
+            # Ten 10 MiB photos plus multipart fields/headers.
+            request.max_content_length = 101 * 1024 * 1024
+        elif request.endpoint == 'admin_popup':
+            request.max_content_length = 11 * 1024 * 1024
 
     CSRFProtect(app)
     login = LoginManager(app)

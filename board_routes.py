@@ -15,9 +15,9 @@ from booking import RuleError, event, write_transaction
 from models import Admin, BoardAttachment, BoardPost, db, utcnow
 
 
-IMAGE_LIMIT = 5 * 1024 * 1024
-MAX_BATCH_IMAGES = 5
-MAX_POST_IMAGES = 30
+IMAGE_LIMIT = 10 * 1024 * 1024
+MAX_BATCH_IMAGES = 10
+MAX_POST_IMAGES = 20
 PIXEL_LIMIT = 20_000_000
 Image.MAX_IMAGE_PIXELS = PIXEL_LIMIT
 STATIC_IMAGES = {f'images/home/slide-{number}.jpg' for number in range(1, 5)}
@@ -75,7 +75,7 @@ def remove_old_image(path):
 def save_image(upload):
     raw = upload.read(IMAGE_LIMIT + 1)
     if len(raw) > IMAGE_LIMIT:
-        raise RuleError('사진은 5MB 이하로 올려 주세요.')
+        raise RuleError('사진은 10MB 이하로 올려 주세요.')
     if not raw:
         raise RuleError('사진 파일을 선택해 주세요.')
     try:
@@ -126,14 +126,23 @@ def fields(category):
 
 def attachment_uploads(post):
     uploads = [file for file in request.files.getlist('attachments') if file.filename]
-    if len(uploads) > MAX_BATCH_IMAGES:
-        raise RuleError('사진은 한 번에 5장까지 추가할 수 있습니다. 저장 후 다시 추가해 주세요.')
-    if len(uploads) + len(post.attachments) + (1 if post.category == 'gallery' else 0) > MAX_POST_IMAGES:
-        raise RuleError('게시글에는 사진을 총 30장까지 올릴 수 있습니다.')
+    cover = request.files.get('image') if post.category == 'gallery' else None
+    if len(uploads) + bool(cover and cover.filename) > MAX_BATCH_IMAGES:
+        raise RuleError('대표 사진을 포함해 한 번에 10장까지 업로드할 수 있습니다.')
+    # Existing posts over the new limit remain editable; only additions are limited.
+    if uploads and len(uploads) + len(post.attachments) + (1 if post.category == 'gallery' else 0) > MAX_POST_IMAGES:
+        raise RuleError('대표 사진을 포함해 게시글에는 사진을 총 20장까지 올릴 수 있습니다.')
     alt = request.form.get('attachments_alt', '').strip()
-    if uploads and not 2 <= len(alt) <= 160:
-        raise RuleError('추가 사진 설명은 2~160자로 입력해 주세요.')
+    if uploads and len(alt) > 160:
+        raise RuleError('추가 사진 설명은 160자 이하로 입력해 주세요. 비워 두어도 됩니다.')
     return uploads, alt
+
+
+def image_width(field, default=100):
+    value = request.form.get(field, str(default))
+    if not re.fullmatch(r'\d{2,3}', value) or not 25 <= int(value) <= 100:
+        raise RuleError('사진 표시 너비는 25~100%로 입력해 주세요.')
+    return int(value)
 
 
 def register_board_routes(app):
@@ -218,6 +227,8 @@ def register_board_routes(app):
             post = BoardPost(category=category, title=title, body=body, body_format=body_format,
                              image_path=None, image_alt=image_alt)
             uploads, alt = attachment_uploads(post)
+            cover_width = image_width('image_width')
+            extra_width = image_width('attachments_width')
             saved_paths = []
             try:
                 image_path = save_image(upload) if category == 'gallery' else None
@@ -230,10 +241,12 @@ def register_board_routes(app):
                     saved_paths.append(path)
                 with write_transaction():
                     post.image_path = image_path
+                    post.image_width = cover_width
                     db.session.add(post)
                     db.session.flush()
                     for path in paths:
-                        db.session.add(BoardAttachment(post_id=post.id, image_path=path, image_alt=alt))
+                        db.session.add(BoardAttachment(post_id=post.id, image_path=path, image_alt=alt,
+                                                       display_width=extra_width))
                     event(f'admin:{current_user.id}', 'board_post_create', post.id, category)
                     post_id = post.id
             except Exception:
@@ -252,6 +265,9 @@ def register_board_routes(app):
             title, body, body_format, image_alt = fields(post.category)
             upload = request.files.get('image') if post.category == 'gallery' else None
             uploads, alt = attachment_uploads(post)
+            cover_width = image_width('image_width', post.image_width)
+            extra_width = image_width('attachments_width')
+            widths = {item.id: image_width(f'width_{item.id}', item.display_width) for item in post.attachments}
             saved_paths = []
             try:
                 image_path = save_image(upload) if upload and upload.filename else None
@@ -266,15 +282,20 @@ def register_board_routes(app):
                     post = db.get_or_404(BoardPost, post_id)
                     current_count = db.session.scalar(db.select(db.func.count()).select_from(BoardAttachment)
                                                       .where(BoardAttachment.post_id == post_id))
-                    if current_count + len(paths) + (1 if post.category == 'gallery' else 0) > MAX_POST_IMAGES:
-                        raise RuleError('게시글에는 사진을 총 30장까지 올릴 수 있습니다.')
+                    if paths and current_count + len(paths) + (1 if post.category == 'gallery' else 0) > MAX_POST_IMAGES:
+                        raise RuleError('대표 사진을 포함해 게시글에는 사진을 총 20장까지 올릴 수 있습니다.')
                     old_path = post.image_path
                     post.title, post.body, post.body_format = title, body, body_format
                     post.image_alt, post.updated_at = image_alt, utcnow()
+                    post.image_width = cover_width
+                    for item in post.attachments:
+                        if item.id in widths:
+                            item.display_width = widths[item.id]
                     if image_path:
                         post.image_path = image_path
                     for path in paths:
-                        db.session.add(BoardAttachment(post_id=post.id, image_path=path, image_alt=alt))
+                        db.session.add(BoardAttachment(post_id=post.id, image_path=path, image_alt=alt,
+                                                       display_width=extra_width))
                     event(f'admin:{current_user.id}', 'board_post_edit', post.id, post.category)
             except Exception:
                 for path in saved_paths:

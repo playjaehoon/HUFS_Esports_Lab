@@ -7,7 +7,7 @@ import holidays
 from booking import clock, korea_now, rules
 from models import BlockedTime, CalendarEvent, RecurringBlock, db
 
-KINDS = {'class': '수업', 'rental': '단체 대관', 'event': '행사', 'closed': '휴관'}
+KINDS = {'class': '수업', 'rental': '단체 대관', 'event': '행사', 'general': '일반', 'closed': '휴관'}
 WEEKDAYS = ('월', '화', '수', '목', '금', '토', '일')
 
 
@@ -28,7 +28,7 @@ def applies(item, day):
 
 def schedule_sources(first, last):
     return (
-        db.session.scalars(db.select(CalendarEvent).where(CalendarEvent.is_active.is_(True),
+        db.session.scalars(db.select(CalendarEvent).where(CalendarEvent.is_active.is_(True), CalendarEvent.is_deleted.is_(False),
             CalendarEvent.start_date <= last.isoformat(), CalendarEvent.end_date >= first.isoformat()).order_by(CalendarEvent.id)).all(),
         db.session.scalars(db.select(BlockedTime).where(BlockedTime.seat_number.is_(None),
             BlockedTime.date >= first.isoformat(), BlockedTime.date <= last.isoformat()).order_by(BlockedTime.id)).all(),
@@ -65,7 +65,19 @@ def schedule_for_day(day, sources=None, policy=None):
         end = closing if item['end'] is None else item['end']
         intervals = [(a, b) for lo, hi in intervals
                      for a, b in ((lo, min(hi, start)), (max(lo, end), hi)) if a < b]
-    return {'date': day.isoformat(), 'weekday': WEEKDAYS[day.weekday()], 'holiday': holiday,
+    # Presentation never removes the underlying booking restrictions.
+    full_closures = [item for item in items if item['blocks'] and
+                     (item['start'] is None or item['start'] <= opening) and
+                     (item['end'] is None or item['end'] >= closing)]
+    representative = next((item for item in full_closures if item['kind'] == 'closed'),
+                          full_closures[0] if full_closures else None)
+    display_items = ([representative] + [item for item in items if not item['blocks']]
+                     if representative else items)
+    display_reason = '' if representative else closed_reason
+    summary = (representative['display_title'] if representative else
+               ('휴관' if not intervals else (items[0]['label'] if items else '')))
+    return {'display_events': display_items, 'display_reason': display_reason,
+            'summary_label': summary, 'date': day.isoformat(), 'weekday': WEEKDAYS[day.weekday()], 'holiday': holiday,
             'closed_reason': closed_reason or ('수업·대관·휴관 일정' if not intervals else ''),
             'intervals': intervals, 'hours': ' / '.join(f'{clock(a)}–{clock(b)}' for a, b in intervals) or '미개방',
             'events': items, 'closed': not intervals}
