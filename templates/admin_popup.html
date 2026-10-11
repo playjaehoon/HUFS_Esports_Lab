@@ -25,7 +25,7 @@
         <textarea class="form-control" id="popup-body" name="body" maxlength="3000" rows="7" aria-invalid="{{ 'true' if errors.get('body') else 'false' }}">{{ draft.body }}</textarea><p class="field-error" data-error-for="body" role="alert">{{ errors.get('body', '') }}</p>
         <label class="form-group" for="popup-image">사진 추가·교체</label>
         <input class="form-control" id="popup-image" name="image" type="file" accept="image/jpeg,image/png,image/webp" aria-invalid="{{ 'true' if errors.get('image') else 'false' }}"><p class="field-error" data-error-for="image" role="alert">{{ errors.get('image', '') }}</p>
-        <p class="help-text">모바일 권장 크기: 정사각형 1080×1080px 또는 세로형 1080×1350px. 중요한 글자와 얼굴은 가장자리에서 10% 이상 안쪽에 배치해 주세요. 사진은 화면에 맞춰 비율을 유지해 표시합니다. JPG·PNG·WebP, 5MB 이하.</p>
+        <p class="help-text">모바일 권장 크기: 정사각형 1080×1080px 또는 세로형 1080×1350px. 중요한 글자와 얼굴은 가장자리에서 10% 이상 안쪽에 배치해 주세요. 사진은 화면에 맞춰 비율을 유지해 표시합니다. JPG·PNG·WebP, 10MB 이하.</p>
         <label class="form-group" for="popup-image-alt">사진 설명 (사진 사용 시 필수)</label>
         <input class="form-control" id="popup-image-alt" name="image_alt" maxlength="160" value="{{ draft.image_alt }}" aria-invalid="{{ 'true' if errors.get('image_alt') else 'false' }}"><p class="field-error" data-error-for="image_alt" role="alert">{{ errors.get('image_alt', '') }}</p>
         {% if current and current.image_path %}<div class="popup-editor-current-image"><img src="{{ url_for('admin_popup_history_image', entry_id=current.id) }}" alt="{{ current.image_alt }}"><label><input type="checkbox" name="remove_image" value="1" {{ 'checked' if draft.remove_image }}> 현재 사진 제외</label></div>{% endif %}

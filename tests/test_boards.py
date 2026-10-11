@@ -144,7 +144,7 @@ def test_gallery_image_upload_rejects_too_many_in_one_request(app):
         'csrf_token': csrf(admin), 'category': 'gallery', 'title': '많은 사진', 'body': '설명',
         'image_alt': '대표 이미지', 'image': (BytesIO(sample), 'cover.jpg'),
         'attachments_alt': '추가 이미지',
-        'attachments': [(BytesIO(sample), f'photo-{n}.jpg') for n in range(6)],
+        'attachments': [(BytesIO(sample), f'photo-{n}.jpg') for n in range(10)],
     }, content_type='multipart/form-data')
     assert response.status_code == 400
     with app.app_context():
@@ -190,3 +190,101 @@ def test_admin_can_hide_and_restore_notice_and_gallery_without_deleting_images(a
     assert '숨김 테스트 사진' in visitor.get('/gallery').get_data(as_text=True)
     assert visitor.get(f'/board/image/{gallery_id}/{attachment_id}').status_code == 200
     assert 'data-home-popup' in visitor.get('/').get_data(as_text=True)
+
+
+def tiny_image(format='PNG'):
+    output = BytesIO()
+    Image.new('RGB', (40, 30), '#2299aa').save(output, format=format)
+    return output.getvalue()
+
+
+def upload_batch(admin, path, count, sample=None, **extra):
+    sample = sample or tiny_image()
+    return admin.post(path, data={
+        'csrf_token': csrf(admin), 'category': 'notice', 'title': '다중 업로드 검수',
+        'body': '본문', 'attachments_alt': '검수 이미지',
+        'attachments': [(BytesIO(sample), f'photo-{n}.png') for n in range(count)], **extra,
+    }, content_type='multipart/form-data')
+
+
+def test_ten_per_batch_twenty_per_post_and_size_changes(app):
+    admin = login(app, admin=True)
+    assert upload_batch(admin, '/admin/posts/new', 10).status_code == 302
+    with app.app_context():
+        entry = db.session.scalar(db.select(BoardPost))
+        identifier = entry.id
+        first_id = entry.attachments[0].id
+    assert upload_batch(admin, f'/admin/posts/{identifier}/edit', 10,
+                        attachments_width='75', **{f'width_{first_id}': '50'}).status_code == 302
+    with app.app_context():
+        entry = db.session.get(BoardPost, identifier)
+        assert len(entry.attachments) == 20
+        assert entry.attachments[0].display_width == 50
+        assert entry.attachments[-1].display_width == 75
+    assert upload_batch(admin, f'/admin/posts/{identifier}/edit', 1).status_code == 400
+    assert upload_batch(admin, '/admin/posts/new', 11).status_code == 400
+    page = app.test_client().get(f'/notices/{identifier}').get_data(as_text=True)
+    assert 'width: 50%' in page and 'width: 75%' in page
+    assert post(admin, f'/admin/posts/{identifier}/edit', {
+        'title':'다중 업로드 검수', 'body':'크기 변경', f'width_{first_id}':'101'}).status_code == 400
+    with app.app_context():
+        assert db.session.get(BoardAttachment, first_id).display_width == 50
+        assert len(db.session.get(BoardPost, identifier).attachments) == 20
+
+
+def test_ten_ten_mb_pngs_fit_request_limit_and_oversize_is_rejected(app):
+    admin = login(app, admin=True)
+    from board_routes import IMAGE_LIMIT
+    original = tiny_image()
+    # Valid PNG with trailing padding: verify the actual multipart 100 MiB boundary.
+    exact = original + b'\0' * (IMAGE_LIMIT - len(original))
+    assert upload_batch(admin, '/admin/posts/new', 10, sample=exact).status_code == 302
+    with app.app_context():
+        assert len(db.session.scalar(db.select(BoardPost)).attachments) == 10
+    response = upload_batch(admin, '/admin/posts/new', 1, sample=exact + b'\0')
+    assert response.status_code == 400 and '10MB' in response.get_data(as_text=True)
+
+
+def test_jpeg_cover_and_png_attachments_widths_and_legacy_over_twenty(app):
+    admin = login(app, admin=True)
+    assert upload_batch(admin, '/admin/posts/new', 9, category='gallery',
+        image=(BytesIO(tiny_image('JPEG')), 'cover.jpeg'), image_alt='대표 사진',
+        image_width='60', attachments_width='80').status_code == 302
+    with app.app_context():
+        entry = db.session.scalar(db.select(BoardPost))
+        identifier, path = entry.id, entry.image_path
+        assert entry.image_width == 60 and len(entry.attachments) == 9
+        assert all(item.display_width == 80 for item in entry.attachments)
+        db.session.add_all([BoardAttachment(post_id=identifier,image_path=path,image_alt='기존 사진') for _ in range(12)])
+        db.session.commit()
+    assert post(admin,f'/admin/posts/{identifier}/edit', {'title':'기존 사진 보존',
+                'body':'편집 가능', 'image_alt':'대표 사진', 'image_width':'50'}).status_code == 302
+    with app.app_context():
+        assert len(db.session.get(BoardPost,identifier).attachments)==21
+    page=app.test_client().get(f'/gallery/{identifier}').get_data(as_text=True)
+    assert 'width: 50%' in page
+
+
+def test_optional_caption_and_widths_survive_later_edits(app):
+    admin = login(app, admin=True)
+    assert upload_batch(admin, '/admin/posts/new', 2,
+                        attachments_alt='', attachments_width='50').status_code == 302
+    with app.app_context():
+        entry=db.session.scalar(db.select(BoardPost))
+        identifier=entry.id
+        first=entry.attachments[0].id
+        assert all(item.image_alt=='' and item.display_width==50 for item in entry.attachments)
+    page=app.test_client().get(f'/notices/{identifier}').get_data(as_text=True)
+    assert '<figcaption>' not in page
+    assert post(admin, f'/admin/posts/{identifier}/edit', {
+        'title':'크기 수정', 'body':'내용', f'width_{first}':'75'}).status_code==302
+    assert post(admin, f'/admin/posts/{identifier}/edit', {
+        'title':'본문만 수정', 'body':'새 내용'}).status_code==302
+    with app.app_context():
+        entry=db.session.get(BoardPost,identifier)
+        assert entry.attachments[0].display_width==75
+        assert entry.attachments[1].display_width==50
+    assert upload_batch(admin, f'/admin/posts/{identifier}/edit', 1,
+                        attachments_alt='가').status_code==302
+    assert upload_batch(admin, f'/admin/posts/{identifier}/edit', 1,
+                        attachments_alt='가'*161).status_code==400

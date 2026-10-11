@@ -21,16 +21,14 @@ document.addEventListener('DOMContentLoaded', () => {
         calendar.querySelectorAll('[data-date]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.date === selected)));
         const title = calendar.querySelector('#calendar-day-title'); title.textContent = `${day.date} (${day.weekday})`;
         calendar.querySelector('[data-calendar-hours]').textContent = day.hours;
-        calendar.querySelector('[data-calendar-reason]').textContent = day.closed_reason;
-        const list = calendar.querySelector('[data-calendar-events]'); list.replaceChildren(); list.hidden = !day.events.length;
-        day.events.forEach(item => {
+        calendar.querySelector('[data-calendar-reason]').textContent = day.display_reason;
+        const list = calendar.querySelector('[data-calendar-events]'); list.replaceChildren(); list.hidden = !day.display_events.length;
+        day.display_events.forEach(item => {
             const li = document.createElement('li');
             li.dataset.kind = item.kind;
             const title = item.display_title || item.title;
             const heading = make('strong', '', title);
-            if (title !== item.label) heading.append(make('small', 'calendar-event-kind', item.label));
             li.append(make('span', 'calendar-event-time', item.time), heading);
-            if (!item.blocks) li.append(make('small', '', '안내 행사 · 이 일정으로는 예약을 차단하지 않습니다.'));
             list.append(li);
         });
         if (focus) title.focus({preventScroll: true});
@@ -45,8 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
             button.type = 'button'; button.dataset.date = day.date;
             button.setAttribute('aria-label', `${day.date} ${day.weekday}요일, ${day.hours}${day.events.length ? `, 일정 ${day.events.length}건` : ''}`);
             button.append(make('span', 'calendar-day-number', String(Number(day.date.slice(-2)))));
-            if (day.closed) button.append(make('span', 'calendar-day-label', '휴관'));
-            if (day.events.length) button.append(make('span', 'calendar-event-mark', `${day.events[0].label}${day.events.length > 1 ? ` +${day.events.length-1}` : ''}`));
+            if (day.summary_label) button.append(make('span', 'calendar-event-mark', day.summary_label));
             grid.append(button);
         });
         calendar.querySelector('[data-month-title]').textContent = `${data.year}년 ${data.month}월`;
