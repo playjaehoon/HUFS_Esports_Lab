@@ -12,7 +12,7 @@ from conftest import PASSWORD, booking, csrf, login, post, reserve
 
 def test_registration_is_immediate_and_password_is_only_hashed(app):
     client = app.test_client()
-    response = post(client, '/register', {'student_number': '202699999', 'name': 'Test new', 'department': '글로벌스포츠산업학부',
+    response = post(client, '/register', {'phone': '010-0000-0001', 'student_number': '202699999', 'name': 'Test new', 'department': '글로벌스포츠산업학부',
                                          'password': PASSWORD, 'password_confirm': PASSWORD})
     assert response.status_code == 302
     assert client.get('/my/reservations').status_code == 200
@@ -31,7 +31,7 @@ def test_student_login_and_registration_open_reservation_screen(app):
     assert '좌석 예약' in client.get('/reserve').get_data(as_text=True)
 
     post(client, '/logout')
-    response = post(client, '/register', {'student_number': '202699998', 'name': 'New student', 'department': '철학과',
+    response = post(client, '/register', {'phone': '010-0000-0001', 'student_number': '202699998', 'name': 'New student', 'department': '철학과',
                                           'password': PASSWORD, 'password_confirm': PASSWORD})
     assert response.status_code == 302
     assert response.headers['Location'].endswith('/reserve')
@@ -64,7 +64,7 @@ def test_public_home_and_reservation_entry(app):
 @pytest.mark.parametrize('changes', [{'student_number': 'bad'}, {'name': '   '}, {'password': '12345'}, {'password': '12a456'}, {'password_confirm': 'different'}])
 def test_bad_registration_is_rejected(app, changes):
     client = app.test_client()
-    data = {'student_number': '202699999', 'name': 'Test', 'department': '글로벌스포츠산업학부',
+    data = {'phone': '010-0000-0001', 'student_number': '202699999', 'name': 'Test', 'department': '글로벌스포츠산업학부',
             'password': PASSWORD, 'password_confirm': PASSWORD, **changes}
     assert post(client, '/register', data).status_code == 400
     with app.app_context():
@@ -73,7 +73,7 @@ def test_bad_registration_is_rejected(app, changes):
 
 def test_registration_rejects_unlisted_department(app):
     client = app.test_client()
-    form = {'student_number': '202699999', 'name': 'Test', 'department': '가짜 학과',
+    form = {'phone': '010-0000-0001', 'student_number': '202699999', 'name': 'Test', 'department': '가짜 학과',
             'password': PASSWORD, 'password_confirm': PASSWORD}
     assert post(client, '/register', form).status_code == 400
     form['department'] = ''
@@ -88,9 +88,9 @@ def test_integrated_and_custom_department_choices(app):
     assert '바이오메디컬공학부' in signup and '기후변화융합학부' in signup
     assert '국제경영학과' not in signup
     assert '서울캠퍼스 학과' in signup
-    form = {'student_number': '202699999', 'name': 'Custom', 'department': '서울캠퍼스 학과',
+    form = {'phone': '010-0000-0001', 'student_number': '202699999', 'name': 'Custom', 'department': '서울캠퍼스 학과',
             'department_other': '영어통번역학과', 'password': PASSWORD, 'password_confirm': PASSWORD}
-    assert post(client, '/register', {**form, 'department_other': '  '}).status_code == 400
+    assert post(client, '/register', {'phone': '010-0000-0001', **form, 'department_other': '  '}).status_code == 400
     assert post(client, '/register', form).status_code == 302
     with app.app_context():
         user = db.session.scalar(db.select(Student).where(Student.student_number == '202699999'))
@@ -158,7 +158,7 @@ def test_reservation_survives_login_and_identity_change(app):
     identifier = reserve(student)
     detail = f'/my/reservations/{identifier}'
     assert student.get(detail).status_code == 200
-    assert post(student, '/account', {'student_number': '202677777', 'name': 'Changed test', 'department': '철학과', 'current_password': PASSWORD}).status_code == 302
+    assert post(student, '/account', {'phone': '010-0000-0001', 'student_number': '202677777', 'name': 'Changed test', 'department': '철학과', 'current_password': PASSWORD}).status_code == 302
     post(student, '/logout')
     assert post(student, '/login', {'student_number': '202677777','password': PASSWORD}).status_code == 302
     assert 'Changed test' in student.get(detail).get_data(as_text=True)
@@ -194,8 +194,8 @@ def test_admin_can_clear_booking_ip_after_review(app):
 
 def test_identity_edit_requires_password_and_unique_number(app):
     student = login(app)
-    assert post(student, '/account', {'student_number':'202677777', 'name':'Test', 'department':'철학과', 'current_password':'wrong'}).status_code == 403
-    assert post(student, '/account', {'student_number':'202600002', 'name':'Test', 'department':'철학과', 'current_password':PASSWORD}).status_code == 409
+    assert post(student, '/account', {'phone': '010-0000-0001', 'student_number':'202677777', 'name':'Test', 'department':'철학과', 'current_password':'wrong'}).status_code == 403
+    assert post(student, '/account', {'phone': '010-0000-0001', 'student_number':'202600002', 'name':'Test', 'department':'철학과', 'current_password':PASSWORD}).status_code == 409
     with app.app_context():
         assert db.session.get(Student,1).student_number == '202600001'
 
@@ -234,21 +234,21 @@ def test_block_applies_to_existing_session_without_losing_history(app):
     assert post(admin,'/admin/students/block/1',{'duration':'1week'}).status_code == 302
     assert post(student,'/api/reserve',json=booking(date='2026-09-16')).status_code == 403
     assert student.get(f'/my/reservations/{identifier}').status_code == 200
-    assert post(student,'/account',{'student_number':'202677777','name':'Changed','department':'철학과','current_password':PASSWORD}).status_code == 302
+    assert post(student,'/account',{'phone': '010-0000-0001', 'student_number':'202677777','name':'Changed','department':'철학과','current_password':PASSWORD}).status_code == 302
     assert post(student,'/api/reserve',json=booking(date='2026-09-16')).status_code == 403
 
 
 def test_old_student_number_cannot_be_reused_to_escape_restriction(app):
     student, admin = login(app), login(app,admin=True)
     assert post(admin,'/admin/students/block/1',{'duration':'1week'}).status_code == 302
-    assert post(student,'/account',{'student_number':'202677777','name':'Changed','department':'철학과','current_password':PASSWORD}).status_code == 302
+    assert post(student,'/account',{'phone': '010-0000-0001', 'student_number':'202677777','name':'Changed','department':'철학과','current_password':PASSWORD}).status_code == 302
     outsider = app.test_client()
-    assert post(outsider,'/register',{'student_number':'202600001','name':'New account','department':'철학과',
+    assert post(outsider,'/register',{'phone': '010-0000-0001', 'student_number':'202600001','name':'New account','department':'철학과',
                                     'password':PASSWORD,'password_confirm':PASSWORD}).status_code == 409
     other = login(app,student=2)
-    assert post(other,'/account',{'student_number':'202600001','name':'Other','department':'철학과','current_password':PASSWORD}).status_code == 409
+    assert post(other,'/account',{'phone': '010-0000-0001', 'student_number':'202600001','name':'Other','department':'철학과','current_password':PASSWORD}).status_code == 409
     # The original owner can correct their number back, without losing the ban.
-    assert post(student,'/account',{'student_number':'202600001','name':'Original','department':'철학과','current_password':PASSWORD}).status_code == 302
+    assert post(student,'/account',{'phone': '010-0000-0001', 'student_number':'202600001','name':'Original','department':'철학과','current_password':PASSWORD}).status_code == 302
     assert post(student,'/api/reserve',json=booking()).status_code == 403
     with app.app_context():
         assert db.session.scalar(db.select(db.func.count()).select_from(Student)) == 2
@@ -630,7 +630,7 @@ def test_card_check_automatically_verifies_member_and_profile_change_resets_it(a
         assert member.identity_verified_at is not None and member.identity_verified_by == 1
     assert '확인 회원' in student.get('/account').get_data(as_text=True)
     assert '확인 회원' in admin.get('/admin/students').get_data(as_text=True)
-    assert post(student, '/account', {'student_number': '202600001', 'name': 'Test student 1',
+    assert post(student, '/account', {'phone': '010-0000-0001', 'student_number': '202600001', 'name': 'Test student 1',
                 'department': '철학과', 'current_password': PASSWORD}).status_code == 302
     with app.app_context():
         assert db.session.get(Student, 1).identity_verified_at is None

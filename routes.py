@@ -38,6 +38,18 @@ def valid_password(value):
     return value
 
 
+def valid_phone(value):
+    raw = (value or '').strip()
+    if not raw:
+        raise RuleError('전화번호를 입력해 주세요.')
+    if len(raw) > 32 or not re.fullmatch(r'[+0-9 -]+', raw):
+        raise RuleError('전화번호 형식을 확인해 주세요. 예: 010-1234-5678, 해외 번호는 +국가번호부터 입력하세요.')
+    normalized = re.sub(r'[ -]', '', raw)
+    if not re.fullmatch(r'(?:0[1-9][0-9]{7,9}|\+[1-9][0-9]{7,14})', normalized):
+        raise RuleError('전화번호 형식을 확인해 주세요. 예: 010-1234-5678, 해외 번호는 +국가번호부터 입력하세요.')
+    return normalized
+
+
 def actor():
     role = 'admin' if isinstance(current_user._get_current_object(), Admin) else 'student'
     return f'{role}:{current_user.id}'
@@ -140,8 +152,10 @@ def register_routes(app):
             password = valid_password(request.form.get('password'))
             if password != request.form.get('password_confirm'):
                 raise RuleError('비밀번호 확인이 일치하지 않습니다.')
+            phone = valid_phone(request.form.get('phone'))
             with write_transaction():
                 user = Student(student_number=number, name=name, department=department,
+                               phone=phone,
                                password_hash=generate_password_hash(password))
                 db.session.add(user)
                 db.session.flush()
@@ -193,11 +207,13 @@ def register_routes(app):
             with write_transaction():
                 if not check_password_hash(current_user.password_hash, request.form.get('current_password', '')):
                     raise RuleError('현재 비밀번호를 확인해 주세요.', 403)
+                phone = valid_phone(request.form.get('phone'))
                 claim_number(current_user.student_number, current_user.id)
                 claim_number(number, current_user.id)
                 if (current_user.student_number, current_user.name, current_user.department) != (number, name, department):
                     current_user.identity_verified_at = current_user.identity_verified_by = None
                 current_user.student_number, current_user.name, current_user.department = number, name, department
+                current_user.phone = phone
                 event(actor(), 'profile_update', current_user.id)
             flash('회원정보를 수정했습니다. 기존 예약과 이용 이력은 유지됩니다.')
             return redirect(url_for('account'))

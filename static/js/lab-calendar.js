@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!calendar) return;
     const strip = document.querySelector('[data-lab-status]');
     let data = JSON.parse(calendar.querySelector('[data-calendar-data]').textContent);
-    let selected = calendar.querySelector('[aria-pressed="true"]').dataset.date, requestId = 0;
+    let selected = calendar.querySelector('[data-date][aria-pressed="true"]')?.dataset.date || data.today, requestId = 0;
     const make = (tag, className, text) => {
         const element = document.createElement(tag); element.className = className; element.textContent = text; return element;
     };
@@ -37,18 +37,38 @@ document.addEventListener('DOMContentLoaded', () => {
         const focusedDate = document.activeElement?.dataset.date;
         const grid = calendar.querySelector('[data-calendar-grid]'); grid.replaceChildren();
         const today = data.today;
-        data.weeks.flat().forEach(day => {
-            if (!day) { grid.append(make('span', 'calendar-day-blank', '')); return; }
+        data.week_views.forEach(week => {
+            const row = make('div', 'calendar-week', ''); row.style.setProperty('--lanes', week.lanes);
+            week.days.forEach((day, index) => {
+            if (!day) {
+                const blank = make('span', 'calendar-day-blank', ''); blank.setAttribute('aria-hidden', 'true');
+                blank.style.gridColumn = index + 1; blank.style.gridRow = 1; row.append(blank); return;
+            }
             const button = make('button', `calendar-day ${day.closed ? 'is-closed' : 'is-open'} ${day.date === today ? 'is-today' : ''}`, '');
             button.type = 'button'; button.dataset.date = day.date;
+            button.style.gridColumn = index + 1; button.style.gridRow = 1;
             button.setAttribute('aria-label', `${day.date} ${day.weekday}요일, ${day.hours}${day.summary_label ? `, ${day.summary_label}` : ''}${day.events.length ? `, 일정 ${day.events.length}건` : ''}`);
-            button.append(make('span', 'calendar-day-number', String(Number(day.date.slice(-2)))));
-            if (day.summary_label) {
-                const mark = make('span', 'calendar-event-mark', day.summary_label);
-                mark.title = day.summary_label;
+            const number = make('span', 'calendar-day-number', '');
+            number.append(make('span', 'calendar-day-digit', String(Number(day.date.slice(-2)))));
+            button.append(number);
+            if (day.cell_label) {
+                const mark = make('span', 'calendar-event-mark', day.cell_label);
+                mark.title = day.cell_label;
                 button.append(mark);
             }
-            grid.append(button);
+            if (day.more_events) button.append(make('span', 'calendar-more', `+${day.more_events}`));
+            row.append(button);
+            });
+            week.spans.forEach(span => {
+                const bar = make('button', 'calendar-span', ''); bar.type = 'button';
+                bar.dataset.kind = span.kind; bar.dataset.eventDate = span.date;
+                bar.style.gridColumn = `${span.column + 1} / span ${span.length}`; bar.style.gridRow = 1;
+                bar.style.setProperty('--lane', span.lane);
+                bar.title = `${span.date}–${span.through} · ${span.title}`;
+                bar.setAttribute('aria-label', `${span.date}부터 ${span.through}까지 ${span.time}, ${span.title}. 일정 상세 보기`);
+                bar.append(make('span', '', span.title)); row.append(bar);
+            });
+            grid.append(row);
         });
         calendar.querySelector('[data-month-title]').textContent = `${data.year}년 ${data.month}월`;
         calendar.dataset.month = `${data.year}-${String(data.month).padStart(2, '0')}`;
@@ -96,8 +116,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     calendar.addEventListener('click', event => {
-        const button = event.target.closest('[data-date]');
-        if (button) { selectDay(data.days.find(day => day.date === button.dataset.date), true); return; }
+        const button = event.target.closest('[data-date], [data-event-date]');
+        if (button) { selectDay(data.days.find(day => day.date === (button.dataset.date || button.dataset.eventDate)), true); return; }
         const link = event.target.closest('[data-calendar-month], [data-calendar-today]');
         if (!link) return;
         event.preventDefault();

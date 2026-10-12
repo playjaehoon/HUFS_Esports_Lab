@@ -26,6 +26,7 @@ class Student(UserMixin, db.Model):
     student_number = db.Column(db.String(9), unique=True, nullable=False)
     name = db.Column(db.String(50), nullable=False)
     department = db.Column(db.String(100))
+    phone = db.Column(db.String(16))
     identity_verified_at = db.Column(db.DateTime)
     identity_verified_by = db.Column(db.Integer, db.ForeignKey('admin.id'))
     password_hash = db.Column(db.String(255), nullable=False)

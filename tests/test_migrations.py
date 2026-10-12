@@ -55,6 +55,23 @@ def rows(database, query, parameters=()):
         return connection.execute(query, parameters).fetchall()
 
 
+def test_phone_migration_preserves_existing_member_and_reservation(tmp_path):
+    database = tmp_path / 'phone-existing.db'
+    with migration_app(database) as app:
+        assert upgrade(app, '0013').exit_code == 0
+        change(database, "INSERT INTO student (id,student_number,name,password_hash,archived,must_change_password,session_version) VALUES (42,'202600042','Existing contact','hash',0,0,1)")
+        change(database, "INSERT INTO reservation (id,student_pk,student_id,student_name,date,start_minute,end_minute,seat_number,status,is_attended,created_at) VALUES (42,42,'202600042','Existing contact','2026-10-13',600,660,1,'active',0,'2026-10-12')")
+        result = upgrade(app)
+        assert result.exit_code == 0, result.output
+        assert rows(database, 'SELECT id,name,phone FROM student') == [(42,'Existing contact',None)]
+        assert rows(database, 'SELECT id,student_pk,status FROM reservation') == [(42,42,'active')]
+        change(database, "UPDATE student SET phone='01000000001' WHERE id=42")
+        assert upgrade(app).exit_code == 0
+    assert rows(database, 'SELECT phone FROM student') == [('01000000001',)]
+    assert rows(database, 'PRAGMA foreign_key_check') == []
+    assert rows(database, 'PRAGMA integrity_check') == [('ok',)]
+
+
 def change(database, query, parameters=()):
     with closing(sqlite3.connect(database)) as connection:
         connection.execute(query, parameters)
@@ -144,7 +161,7 @@ def test_import_preserves_source_and_converts_security_and_relations(
     assert rows(output, 'SELECT value FROM setting WHERE key="max_hours"') == [('2',)]
     assert rows(output, 'SELECT value FROM setting WHERE key="open_hour"') == [('9',)]
     assert rows(output, 'SELECT action FROM audit_event') == [('legacy_import',)]
-    assert rows(output, 'SELECT version_num FROM alembic_version') == [('0013',)]
+    assert rows(output, 'SELECT version_num FROM alembic_version') == [('0014',)]
     assert rows(output, "SELECT title, body FROM board_post WHERE category='notice'") == [
         ('실습실 이용 안내', 'Synthetic notice')]
     assert rows(output, "SELECT count(*) FROM board_post WHERE category='gallery'") == [(4,)]
@@ -204,7 +221,7 @@ def test_empty_version_table_from_older_failed_upgrade_can_be_imported(legacy, t
     with migration_app(tmp_path / 'cli.db') as app, app.app_context():
         import_legacy(legacy, output, 'UTC')
     assert legacy.read_bytes() == before
-    assert rows(output, 'SELECT version_num FROM alembic_version') == [('0013',)]
+    assert rows(output, 'SELECT version_num FROM alembic_version') == [('0014',)]
 
 
 def test_fresh_upgrade_is_versioned_and_safe_to_repeat(tmp_path):
@@ -212,10 +229,10 @@ def test_fresh_upgrade_is_versioned_and_safe_to_repeat(tmp_path):
     with migration_app(database) as app:
         result = upgrade(app)
         assert result.exit_code == 0, result.output
-        assert rows(database, 'SELECT version_num FROM alembic_version') == [('0013',)]
+        assert rows(database, 'SELECT version_num FROM alembic_version') == [('0014',)]
         result = upgrade(app)
         assert result.exit_code == 0, result.output
-    assert rows(database, 'SELECT version_num FROM alembic_version') == [('0013',)]
+    assert rows(database, 'SELECT version_num FROM alembic_version') == [('0014',)]
 
 
 def test_revision_0010_preserves_current_popup_and_existing_posts(tmp_path):
@@ -227,7 +244,7 @@ def test_revision_0010_preserves_current_popup_and_existing_posts(tmp_path):
                ('home_popup', '{"enabled":true,"mode":"notice","notice_id":7,"title":"","body":"","image_path":null,"image_alt":"","version":"old-popup"}'))
         result = upgrade(app)
         assert result.exit_code == 0, result.output
-    assert rows(database, 'SELECT version_num FROM alembic_version') == [('0013',)]
+    assert rows(database, 'SELECT version_num FROM alembic_version') == [('0014',)]
     assert rows(database, 'SELECT id, is_hidden FROM board_post WHERE id=7') == [(7, 0)]
     assert rows(database, 'SELECT notice_id, is_active, version FROM home_popup') == [(7, 1, 'old-popup')]
     assert rows(database, 'PRAGMA integrity_check') == [('ok',)]
@@ -243,7 +260,7 @@ def test_revision_0011_preserves_blocks_posts_and_operating_settings(tmp_path):
         change(database, "INSERT INTO recurring_block (weekday,start_minute,end_minute,reason) VALUES (1,600,660,'Private class')")
         result = upgrade(app)
         assert result.exit_code == 0, result.output
-    assert rows(database, 'SELECT version_num FROM alembic_version') == [('0013',)]
+    assert rows(database, 'SELECT version_num FROM alembic_version') == [('0014',)]
     assert rows(database, "SELECT value FROM setting WHERE key='open_weekdays'") == [('[0,1,2]',)]
     assert rows(database, "SELECT value FROM setting WHERE key='open_hour'") == [('10',)]
     assert rows(database, 'SELECT reason FROM blocked_time') == [('Private old rental',)]
