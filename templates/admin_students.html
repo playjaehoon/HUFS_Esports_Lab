@@ -3,9 +3,10 @@
 <div class="admin-list-heading"><div><h1 class="page-title">학생 관리</h1><p class="section-intro">학번·이름·학과로 검색하거나 열 제목을 눌러 정렬할 수 있습니다. 비밀번호는 조회할 수 없습니다.</p></div><a class="btn btn-secondary" href="{{ url_for('admin_stats') }}">통계 · Excel</a></div>
 <form class="filter-row" method="get"><label>학생 검색 <input class="form-control" name="q" value="{{ term }}" maxlength="50" placeholder="학번, 이름 또는 학과"></label><input type="hidden" name="sort" value="{{ sort }}"><input type="hidden" name="direction" value="{{ direction }}"><button class="btn btn-primary">검색</button></form>
 {% macro sort_link(key, label) %}<a href="{{ url_for('admin_students', q=term, sort=key, direction='desc' if sort == key and direction == 'asc' else 'asc') }}" {% if sort == key %}aria-label="{{ label }} {{ '오름차순' if direction == 'asc' else '내림차순' }} 정렬됨"{% endif %}>{{ label }}{% if sort == key %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a>{% endmacro %}
-<div class="student-table-head"><span>{{ sort_link('number', '학번') }}</span><span>{{ sort_link('name', '이름') }}</span><span>{{ sort_link('department', '학과') }}</span><span>상태</span><span>관리</span></div>
+<div class="student-table-head"><span>{{ sort_link('number', '학번') }}</span><span>{{ sort_link('name', '이름') }}</span><span>{{ sort_link('department', '학과') }}</span><span>전화번호</span><span>상태</span><span>관리</span></div>
 <section class="student-table">{% for s in students.items %}
 <article class="student-row"><span data-label="학번">{{ s.student_number }}</span><strong data-label="이름">{{ s.name }}</strong><span data-label="학과">{{ s.department or '미입력' }}</span>
+<span data-label="전화번호">{% if s.phone %}<a href="tel:{{ s.phone }}">{{ s.phone }}</a>{% else %}미입력{% endif %}</span>
 <span data-label="상태">{{ '확인 회원' if s.identity_verified_at else '임시 회원' }}<br>{% if s.archived %}비활성화{% elif s.blocked_until and s.blocked_until > now %}{% if s.blocked_until.year > now.year + 50 %}영구 이용 제한{% else %}이용 제한{% endif %}{% else %}예약 가능{% endif %}</span>
 <div class="student-actions"><details><summary>{{ '계정 복구' if s.archived else '관리' }}</summary>
 {% if s.archived %}

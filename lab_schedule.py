@@ -40,13 +40,15 @@ def schedule_for_day(day, sources=None, policy=None):
     events, blocks, recurring = sources or schedule_sources(day, day)
     opening, closing = policy['open_hour'] * 60, policy['close_hour'] * 60
     items = []
-    def add(title, kind, start, end, blocked):
+    def add(title, kind, start, end, blocked, span_key=None, multi_day=False):
         display_title = KINDS[kind] if title in {'정기 수업', '대관·행사'} else title
         items.append({'title': title, 'display_title': display_title, 'kind': kind, 'label': KINDS[kind], 'start': start,
-                      'end': end, 'blocks': blocked, 'time': '종일' if start is None else f'{clock(start)}–{clock(end)}'})
+                      'end': end, 'blocks': blocked, 'time': '종일' if start is None else f'{clock(start)}–{clock(end)}',
+                      'span_key': span_key, 'multi_day': multi_day})
     for item in events:
         if applies(item, day):
-            add(item.title, item.kind, item.start_minute, item.end_minute, item.blocks_reservations)
+            add(item.title, item.kind, item.start_minute, item.end_minute, item.blocks_reservations,
+                f'calendar:{item.id}', item.start_date != item.end_date and item.weekday is None)
     # Internal block reasons and all individual-seat blocks remain private.
     for item in blocks:
         if item.date == day.isoformat():
@@ -91,17 +93,27 @@ def operating_status(now=None):
     active = next(((a, b) for a, b in schedule['intervals'] if a <= minute < b), None)
     upcoming = next(((a, b) for a, b in schedule['intervals'] if a > minute), None)
     if schedule['closed']:
-        state, detail = 'closed', schedule['closed_reason']
+        state, label, detail = 'closed', '휴관', schedule['closed_reason']
     elif active:
-        state, detail = 'open', f'{clock(active[1])}까지 개방'
-    elif minute < policy['open_hour'] * 60:
-        state, detail = 'closed', f'{clock(schedule["intervals"][0][0])} 개방'
+        state, label, detail = 'open', '개방', f'{clock(active[1])}까지 개방'
+    elif minute < schedule['intervals'][0][0]:
+        state, label, detail = 'before', '운영 전', f'{clock(schedule["intervals"][0][0])} 개방'
     elif upcoming:
+        kinds = {item['kind'] for item in schedule['events'] if item['blocks'] and
+                 (item['start'] is None or item['start'] <= minute) and
+                 (item['end'] is None or minute < item['end'])}
+        if kinds == {'class', 'rental'}:
+            label = '수업·대관 중'
+        elif kinds == {'class'}:
+            label = '수업 중'
+        elif kinds == {'rental'}:
+            label = '대관 중'
+        else:
+            label = '일시 휴관'
         state, detail = 'paused', f'{clock(upcoming[0])} 다시 개방'
     else:
-        state, detail = 'closed', '다음 이용일의 일정을 확인해 주세요.'
+        state, label, detail = 'finished', '운영 종료', '오늘 운영을 마쳤습니다.'
     # The main strip shows only the current state; reasons stay in the calendar.
-    label = '개방' if active else '휴관'
     return {'state': state, 'label': label, 'detail': detail, 'date': schedule['date'],
             'hours': schedule['hours'], 'reservation_open': policy['reservation_open'] == '1',
             'checked_at': now.isoformat(), 'checked_time': now.strftime('%H:%M'),
@@ -128,5 +140,44 @@ def month_schedule(year, month):
     cells += [None] * (-len(cells) % 7)
     previous = first - timedelta(days=1)
     following = last + timedelta(days=1)
-    return {'year': year, 'month': month, 'weeks': [cells[i:i+7] for i in range(0, len(cells), 7)],
+    weeks = [cells[i:i+7] for i in range(0, len(cells), 7)]
+    return {'year': year, 'month': month, 'weeks': weeks, 'week_views': calendar_week_views(weeks),
             'days': days, 'previous': previous.strftime('%Y-%m'), 'following': following.strftime('%Y-%m')}
+
+
+def calendar_week_views(weeks):
+    """Pack public multi-day segments into two lanes, preserving per-day details."""
+    views = []
+    for week in weeks:
+        segments, previous_segments = [], {}
+        for column, day in enumerate(week):
+            if day is None:
+                continue
+            singles = [item for item in day['display_events'] if not item['multi_day']]
+            day['cell_label'] = singles[0]['display_title'] if singles else ('휴관' if day['display_reason'] else '')
+            day['more_events'] = max(0, len(singles) - 1)
+            for item in day['display_events']:
+                if not item['multi_day']:
+                    continue
+                prior = previous_segments.get(item['span_key'])
+                if prior is not None and prior['column'] + prior['length'] == column:
+                    prior['length'] += 1
+                    prior['through'] = day['date']
+                else:
+                    prior = {'key': item['span_key'], 'title': item['display_title'], 'kind': item['kind'],
+                             'time': item['time'], 'column': column, 'length': 1,
+                             'date': day['date'], 'through': day['date']}
+                    segments.append(prior)
+                    previous_segments[item['span_key']] = prior
+        lane_columns, visible = [set(), set()], []
+        for segment in sorted(segments, key=lambda item: (item['kind'] != 'closed', item['column'], -item['length'], item['key'])):
+            columns = set(range(segment['column'], segment['column'] + segment['length']))
+            lane = next((index for index, occupied in enumerate(lane_columns) if not columns & occupied), None)
+            if lane is None:
+                for day in week[segment['column']:segment['column'] + segment['length']]:
+                    day['more_events'] += 1
+                continue
+            lane_columns[lane].update(columns)
+            visible.append({**segment, 'lane': lane})
+        views.append({'days': week, 'spans': visible, 'lanes': max((item['lane'] + 1 for item in visible), default=0)})
+    return views

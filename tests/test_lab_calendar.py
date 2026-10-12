@@ -32,10 +32,30 @@ def test_open_intervals_overlap_and_live_status_boundaries(app):
     assert post(admin, '/admin/calendar', event_form(title='추가 대관', start_time='15:00', end_time='16:30')).status_code == 302
     with app.app_context():
         assert schedule_for_day(date(2026,9,15))['intervals'] == [(540,840),(990,1020)]
-        for time, label in [('08:59','휴관'),('09:00','개방'),('13:59','개방'),
-                            ('14:00','휴관'),('16:29','휴관'),('16:30','개방'),('17:00','휴관')]:
+        for time, label in [('08:59','운영 전'),('09:00','개방'),('13:59','개방'),
+                            ('14:00','대관 중'),('16:29','대관 중'),('16:30','개방'),('17:00','운영 종료')]:
             set_now(app, time=time)
             assert operating_status()['label'] == label
+
+
+def test_status_uses_actual_first_opening_and_keeps_closed_days_closed(app):
+    admin = login(app, admin=True)
+    assert post(admin, '/admin/calendar', event_form(kind='class', title='오전 수업',
+                start_time='09:00', end_time='11:00')).status_code == 302
+    public = app.test_client()
+    for time, state, label in [('08:00','before','운영 전'), ('10:59','before','운영 전'),
+                                ('11:00','open','개방'), ('17:00','finished','운영 종료')]:
+        set_now(app, time=time)
+        status = public.get('/api/lab/status').get_json()
+        assert (status['state'], status['label']) == (state, label)
+        assert status['hours'] == '11:00–17:00'
+        html = public.get('/').get_data(as_text=True).split('data-lab-status', 1)[1].split('</section>',1)[0]
+        assert f'data-state="{state}"' in html and f'data-status-label>{label}</strong>' in html
+    assert post(admin, '/admin/calendar', event_form(kind='closed', title='임시 휴관', all_day='1')).status_code == 302
+    for time in ['08:00', '12:00', '19:00']:
+        set_now(app, time=time)
+        status = public.get('/api/lab/status').get_json()
+        assert (status['state'], status['label']) == ('closed', '휴관')
 
 
 def test_calendar_excludes_seat_blocks_private_reasons_and_student_data(app):
@@ -170,7 +190,7 @@ def test_compact_status_shows_only_current_state_and_keeps_event_in_calendar(app
     assert post(admin, '/admin/calendar', event_form(title='특강', kind='class')).status_code == 302
     set_now(app, time='14:30')
     status = app.test_client().get('/api/lab/status').get_json()
-    assert status['label'] == '휴관'
+    assert status['label'] == '수업 중'
     assert status['checked_label'] == '9월 15일 14:30 기준'
     set_now(app, time='13:00')
     assert app.test_client().get('/api/lab/status').get_json()['label'] == '개방'

@@ -6,6 +6,8 @@
     <form method="post">{{ csrf() }}
         {{ input('student_number', '학번 (9자리)', minlen=9, maxlen=9, autocomplete='username') }}
         {{ input('name', '이름', maxlen=50, autocomplete='name') }}
+        {{ input('phone', '전화번호', 'tel', maxlen=32, autocomplete='tel', inputmode='tel') }}
+        <p class="help-text">예약 변경·긴급 안내를 위한 연락처입니다. 예: 010-1234-5678. 해외 번호는 +국가번호부터 입력해 주세요.</p>
         <div class="form-group"><label for="department">학과 선택</label>
             <select class="form-control" id="department" name="department" data-department-select required>
                 <option value="">학과를 선택해 주세요</option>
